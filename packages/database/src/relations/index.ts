@@ -1,0 +1,34 @@
+export { usersRelations } from './users.relations.js';
+export { githubInstallationsRelations } from './github-installations.relations.js';
+export { repositoriesRelations } from './repositories.relations.js';
+export { pullRequestsRelations } from './pull-requests.relations.js';
+export { reviewJobsRelations } from './review-jobs.relations.js';
+export { reviewCommentsRelations } from './review-comments.relations.js';
+export { aiReviewChunksRelations } from './ai-review-chunks.relations.js';
+export { embeddingsRelations } from './embeddings.relations.js';
+export { notificationsRelations } from './notifications.relations.js';
+export { auditLogsRelations } from './audit-logs.relations.js';
+
+import { auditLogsRelations } from './audit-logs.relations.js';
+import { aiReviewChunksRelations } from './ai-review-chunks.relations.js';
+import { embeddingsRelations } from './embeddings.relations.js';
+import { githubInstallationsRelations } from './github-installations.relations.js';
+import { notificationsRelations } from './notifications.relations.js';
+import { pullRequestsRelations } from './pull-requests.relations.js';
+import { repositoriesRelations } from './repositories.relations.js';
+import { reviewCommentsRelations } from './review-comments.relations.js';
+import { reviewJobsRelations } from './review-jobs.relations.js';
+import { usersRelations } from './users.relations.js';
+
+export const databaseRelations = {
+  usersRelations,
+  githubInstallationsRelations,
+  repositoriesRelations,
+  pullRequestsRelations,
+  reviewJobsRelations,
+  reviewCommentsRelations,
+  aiReviewChunksRelations,
+  embeddingsRelations,
+  notificationsRelations,
+  auditLogsRelations,
+} as const;
