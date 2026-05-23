@@ -6,28 +6,51 @@ import {
   type AIProviderName,
   type ReviewChunkResult,
   type ReviewExecutionInput,
-  type ReviewFileDiff,
+  type ReviewFinding,
   type ReviewFocusArea,
   type ReviewOrchestrationResult,
+  type ReviewSeverity,
   ReviewExecutionEngine,
   reviewFocusAreas,
 } from '@devflow/ai-engine';
 import {
   AiReviewChunksRepository,
+  GithubInstallationsRepository,
   PullRequestsRepository,
   RepositoriesRepository,
+  ReviewCommentsRepository,
   ReviewJobsRepository,
   type ReviewJob,
 } from '@devflow/database';
+import {
+  GitHubAppClient,
+  GitHubReviewClient,
+  normalizePullRequestFiles,
+  type GitHubAppCredentials,
+  type GitHubReviewComment,
+  type GitHubReviewState,
+  type PublishedReviewResult,
+} from '@devflow/github-sdk';
 
 type ReviewJobInputPayload = Record<string, unknown> & {
-  readonly files?: ReadonlyArray<ReviewFileDiff>;
   readonly focusAreas?: ReadonlyArray<ReviewFocusArea>;
   readonly provider?: AIProviderName;
   readonly model?: string;
   readonly maxChunkTokens?: number;
   readonly requestId?: string;
   readonly timeoutMs?: number;
+};
+
+type ProviderAttempt = {
+  readonly provider: AIProviderName;
+  readonly model: string;
+};
+
+type ReviewExecutionResult = ReviewOrchestrationResult & {
+  readonly providerAttempts: ReadonlyArray<ProviderAttempt>;
+  readonly selectedProvider: AIProviderName;
+  readonly selectedModel: string;
+  readonly executionMs: number;
 };
 
 const DEFAULT_MODELS: Record<AIProviderName, string> = {
@@ -44,43 +67,80 @@ const toStringValue = (value: unknown): string | undefined => {
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 };
 
-const normalizeReviewFiles = (value: ReadonlyArray<Record<string, unknown>>): ReviewFileDiff[] => {
-  const files: ReviewFileDiff[] = [];
-
-  for (const entry of value) {
-    const path = toStringValue(entry.path);
-    const diff = toStringValue(entry.diff);
-    if (path === undefined || diff === undefined) {
-      continue;
-    }
-
-    files.push({
-      path,
-      diff,
-      language: toStringValue(entry.language),
-      isBinary: typeof entry.isBinary === 'boolean' ? entry.isBinary : undefined,
-    });
+const splitRepositoryFullName = (fullName: string): { readonly owner: string; readonly repository: string } => {
+  const [owner, repository] = fullName.split('/');
+  if (!owner || !repository) {
+    throw new Error(`Repository full name is invalid: ${fullName}`);
   }
 
-  return files;
+  return { owner, repository };
 };
 
-const isCompletedResult = (value: unknown): value is ReviewOrchestrationResult => {
-  if (!isRecord(value)) {
-    return false;
+const mapSeverityToReviewState = (severity: ReviewSeverity, findingCount: number): GitHubReviewState => {
+  if (findingCount === 0) {
+    return 'approve';
   }
 
-  return value.status === 'completed' && typeof value.summary === 'string' && typeof value.overallSeverity === 'string';
+  if (severity === 'critical') {
+    return 'request_changes';
+  }
+
+  return 'comment';
+};
+
+const buildReviewCommentBody = (finding: ReviewFinding): string => {
+  const parts = [`**${finding.title}**`, finding.summary];
+
+  if (finding.rationale !== undefined) {
+    parts.push(`Rationale: ${finding.rationale}`);
+  }
+
+  if (finding.suggestion !== undefined) {
+    parts.push(`Suggestion: ${finding.suggestion}`);
+  }
+
+  if (finding.tags.length > 0) {
+    parts.push(`Tags: ${finding.tags.join(', ')}`);
+  }
+
+  return parts.join('\n\n');
+};
+
+const buildSummaryBody = (input: {
+  readonly repositoryFullName: string;
+  readonly pullRequestNumber: number;
+  readonly result: ReviewExecutionResult;
+  readonly reviewState: GitHubReviewState;
+  readonly providerAttempts: ReadonlyArray<ProviderAttempt>;
+}): string => {
+  const providerSummary = input.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.model}`).join(', ');
+
+  return [
+    `DevFlow AI review for ${input.repositoryFullName} #${input.pullRequestNumber}`,
+    `Overall severity: ${input.result.overallSeverity}`,
+    `Review state: ${input.reviewState}`,
+    `Findings: ${input.result.findings.length}`,
+    `Chunks: ${input.result.chunkCount}`,
+    `Focus areas: ${input.result.focusAreaCount}`,
+    `Tokens processed: ${input.result.totalTokens}`,
+    `Execution time: ${input.result.executionMs}ms`,
+    `Provider attempts: ${providerSummary}`,
+    '',
+    input.result.summary,
+  ].join('\n');
 };
 
 @Injectable()
 export class ReviewPipelineService {
   private readonly executionEngine = new ReviewExecutionEngine();
-  private readonly providerCache = new Map<string, AIProvider>();
+  private readonly providerCache = new Map<AIProviderName, AIProvider>();
+  private readonly githubReviewClient = new GitHubReviewClient();
 
   constructor(
     private readonly reviewJobsRepository: ReviewJobsRepository,
+    private readonly githubInstallationsRepository: GithubInstallationsRepository,
     private readonly aiReviewChunksRepository: AiReviewChunksRepository,
+    private readonly reviewCommentsRepository: ReviewCommentsRepository,
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly repositoriesRepository: RepositoriesRepository,
   ) {}
@@ -91,23 +151,11 @@ export class ReviewPipelineService {
       throw new Error(`Review job ${reviewJobId} was not found`);
     }
 
-    if (reviewJob.status === 'completed' && isCompletedResult(reviewJob.output)) {
+    if (reviewJob.status === 'completed' && this.isCompletedResult(reviewJob.output)) {
       return reviewJob.output;
     }
 
     const input = this.parseJobInput(reviewJob);
-    const files = input.files;
-
-    if (files.length === 0) {
-      await this.reviewJobsRepository.updateStatus(reviewJob.id, 'failed', {
-        failedAt: new Date(),
-        errorMessage: 'Review job does not contain any diff files to analyze',
-        retryCount: reviewJob.retryCount + 1,
-      });
-
-      throw new Error('Review job does not contain any diff files to analyze');
-    }
-
     const pullRequest = await this.pullRequestsRepository.findById(reviewJob.pullRequestId);
     if (!pullRequest) {
       throw new Error(`Pull request ${reviewJob.pullRequestId} was not found`);
@@ -118,72 +166,109 @@ export class ReviewPipelineService {
       throw new Error(`Repository ${reviewJob.repositoryId} was not found`);
     }
 
-    const provider = this.resolveProvider(input.provider);
-    const model = input.model ?? DEFAULT_MODELS[provider.provider];
-    const focusAreas = input.focusAreas ?? reviewFocusAreas;
+    const installation = await this.githubInstallationsRepository.findById(repository.githubInstallationId);
+    if (!installation) {
+      throw new Error(`GitHub installation ${repository.githubInstallationId} was not found`);
+    }
 
     const leaseToken = randomUUID();
-    await this.reviewJobsRepository.claimLease(reviewJob.id, leaseToken);
-    await this.reviewJobsRepository.updateStatus(reviewJob.id, 'chunking', {
+    const leased = await this.reviewJobsRepository.claimLease(reviewJob.id, leaseToken);
+    if (!leased) {
+      throw new Error(`Review job ${reviewJob.id} is no longer available for processing`);
+    }
+
+    const gitHubAppClient = this.resolveGitHubAppClient();
+    const gitHubAccessToken = await gitHubAppClient.createInstallationAccessToken(installation.githubInstallationId);
+    const ownerRepository = splitRepositoryFullName(repository.fullName);
+    const rawFiles = await this.githubReviewClient.fetchPullRequestFiles(
+      ownerRepository.owner,
+      ownerRepository.repository,
+      pullRequest.number,
+      gitHubAccessToken.token,
+    );
+    const files = normalizePullRequestFiles(rawFiles);
+
+    if (files.length === 0) {
+      await this.reviewJobsRepository.updateStatus(reviewJob.id, 'failed', {
+        failedAt: new Date(),
+        errorMessage: 'Review job does not contain any diff files to analyze',
+        retryCount: reviewJob.retryCount + 1,
+        leaseToken,
+      });
+
+      throw new Error('Review job does not contain any diff files to analyze');
+    }
+
+    await this.reviewJobsRepository.updateStatus(reviewJob.id, 'processing', {
+      leaseToken,
       input: {
         ...reviewJob.input,
         reviewPipeline: {
-          provider: provider.provider,
-          model,
-          focusAreas,
+          repositoryFullName: repository.fullName,
+          pullRequestNumber: pullRequest.number,
+          provider: input.provider ?? null,
+          focusAreas: input.focusAreas,
         },
       },
     });
 
-    await this.aiReviewChunksRepository.deleteByReviewJobId(reviewJob.id);
+    const startedAt = Date.now();
+    const providerAttempts: ProviderAttempt[] = [];
 
     try {
-      const executionInput: ReviewExecutionInput = {
-        provider,
-        model,
-        files,
-        focusAreas,
-        maxChunkTokens: input.maxChunkTokens,
-        timeoutMs: input.timeoutMs,
+      const executionResult = await this.executeWithFallback({
+        reviewJob,
+        leaseToken,
         requestId: input.requestId ?? reviewJob.id,
-        promptVersion: 'review-v1',
-      };
+        files,
+        focusAreas: input.focusAreas ?? reviewFocusAreas,
+        preferredProvider: input.provider,
+        preferredModel: input.model,
+        timeoutMs: input.timeoutMs,
+        maxChunkTokens: input.maxChunkTokens,
+        providerAttempts,
+      });
+      const executionMs = Date.now() - startedAt;
+      const reviewState = mapSeverityToReviewState(executionResult.overallSeverity, executionResult.findings.length);
+      const summaryBody = buildSummaryBody({
+        repositoryFullName: repository.fullName,
+        pullRequestNumber: pullRequest.number,
+        result: executionResult,
+        reviewState,
+        providerAttempts,
+      });
 
-      const result = await this.executionEngine.execute(executionInput, {
-        onStateChange: async (state: 'chunking' | 'analyzing' | 'summarizing') => {
-          await this.reviewJobsRepository.updateStatus(reviewJob.id, state, {
-            leaseToken,
-          });
-        },
-        onChunkResult: async (chunkResult: ReviewChunkResult) => {
-          await this.aiReviewChunksRepository.upsertForReviewJob({
-            reviewJobId: reviewJob.id,
-            pullRequestId: reviewJob.pullRequestId,
-            repositoryId: reviewJob.repositoryId,
-            chunkIndex: chunkResult.chunkIndex,
-            chunkType: 'diff',
-            sourcePath: chunkResult.sourcePath,
-            lineStart: chunkResult.content.length > 0 ? 1 : null,
-            lineEnd: chunkResult.content.length > 0 ? chunkResult.content.split(/\r?\n/).length : null,
-            tokenCount: chunkResult.tokenCount,
-            content: chunkResult.content,
-            summary: chunkResult.summary,
-            metadata: {
-              focusArea: chunkResult.focusArea,
-              promptVersion: chunkResult.promptVersion,
-              provider: chunkResult.provider,
-              model: chunkResult.model,
-              findingCount: chunkResult.findings.length,
-              usage: chunkResult.usage,
-            },
-          });
-        },
+      const publication = await this.publishReview({
+        accessToken: gitHubAccessToken.token,
+        repositoryFullName: repository.fullName,
+        pullRequestNumber: pullRequest.number,
+        headSha: pullRequest.headSha,
+        reviewState,
+        summaryBody,
+        findings: executionResult.findings,
+      });
+
+      await this.persistReviewArtifacts({
+        reviewJobId: reviewJob.id,
+        pullRequestId: reviewJob.pullRequestId,
+        repositoryId: reviewJob.repositoryId,
+        findings: executionResult.findings,
+        summaryBody,
+        publication,
+        providerAttempts,
+        executionResult,
+        executionMs,
       });
 
       const completed = await this.reviewJobsRepository.updateStatus(reviewJob.id, 'completed', {
         completedAt: new Date(),
         output: {
-          ...result,
+          ...executionResult,
+          executionMs,
+          providerAttempts,
+          selectedProvider: executionResult.selectedProvider,
+          selectedModel: executionResult.selectedModel,
+          githubReview: publication,
           repositoryId: repository.id,
           repositoryFullName: repository.fullName,
           pullRequestId: pullRequest.id,
@@ -196,7 +281,7 @@ export class ReviewPipelineService {
         throw new Error(`Failed to persist completion state for review job ${reviewJob.id}`);
       }
 
-      return result;
+      return executionResult;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown review pipeline failure';
 
@@ -211,27 +296,220 @@ export class ReviewPipelineService {
     }
   }
 
-  private parseJobInput(reviewJob: ReviewJob): ReviewJobInputPayload & { readonly files: ReviewFileDiff[] } {
+  private async executeWithFallback(input: {
+    readonly reviewJob: ReviewJob;
+    readonly leaseToken: string;
+    readonly requestId: string;
+    readonly files: ReadonlyArray<ReturnType<typeof normalizePullRequestFiles>[number]>;
+    readonly focusAreas: ReadonlyArray<ReviewFocusArea>;
+    readonly preferredProvider?: AIProviderName;
+    readonly preferredModel?: string;
+    readonly timeoutMs?: number;
+    readonly maxChunkTokens?: number;
+    readonly providerAttempts: ProviderAttempt[];
+  }): Promise<ReviewExecutionResult> {
+    const providerOrder = this.resolveProviderOrder(input.preferredProvider);
+    let lastError: unknown = new Error('No AI provider could process the review');
+
+    for (const providerName of providerOrder) {
+      const model = input.preferredProvider === providerName && input.preferredModel !== undefined
+        ? input.preferredModel
+        : DEFAULT_MODELS[providerName];
+
+      const provider = this.resolveProvider(providerName);
+      input.providerAttempts.push({ provider: providerName, model });
+
+      await this.aiReviewChunksRepository.deleteByReviewJobId(input.reviewJob.id);
+
+      try {
+        const startedAt = Date.now();
+        const result = await this.executionEngine.execute(
+          {
+            provider,
+            model,
+            files: input.files,
+            focusAreas: input.focusAreas,
+            maxChunkTokens: input.maxChunkTokens,
+            timeoutMs: input.timeoutMs,
+            requestId: input.requestId,
+            promptVersion: 'review-v1',
+          },
+          {
+            onStateChange: async (state) => {
+              await this.reviewJobsRepository.updateStatus(input.reviewJob.id, state, {
+                leaseToken: input.leaseToken,
+              });
+            },
+            onChunkResult: async (chunkResult: ReviewChunkResult) => {
+              await this.aiReviewChunksRepository.upsertForReviewJob({
+                reviewJobId: input.reviewJob.id,
+                pullRequestId: input.reviewJob.pullRequestId,
+                repositoryId: input.reviewJob.repositoryId,
+                chunkIndex: chunkResult.chunkIndex,
+                chunkType: 'diff',
+                sourcePath: chunkResult.sourcePath,
+                lineStart: chunkResult.content.length > 0 ? 1 : null,
+                lineEnd: chunkResult.content.length > 0 ? chunkResult.content.split(/\r?\n/).length : null,
+                tokenCount: chunkResult.tokenCount,
+                content: chunkResult.content,
+                summary: chunkResult.summary,
+                metadata: {
+                  focusArea: chunkResult.focusArea,
+                  promptVersion: chunkResult.promptVersion,
+                  provider: chunkResult.provider,
+                  model: chunkResult.model,
+                  findingCount: chunkResult.findings.length,
+                  usage: chunkResult.usage,
+                },
+              });
+            },
+          },
+        );
+
+        return {
+          ...result,
+          providerAttempts: [...input.providerAttempts],
+          selectedProvider: providerName,
+          selectedModel: model,
+          executionMs: Date.now() - startedAt,
+        };
+      } catch (error: unknown) {
+        lastError = error;
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error('No AI provider could process the review');
+  }
+
+  private async publishReview(input: {
+    readonly accessToken: string;
+    readonly repositoryFullName: string;
+    readonly pullRequestNumber: number;
+    readonly headSha: string;
+    readonly reviewState: GitHubReviewState;
+    readonly summaryBody: string;
+    readonly findings: ReadonlyArray<ReviewFinding>;
+  }): Promise<PublishedReviewResult> {
+    const { owner, repository } = splitRepositoryFullName(input.repositoryFullName);
+    const comments: GitHubReviewComment[] = [];
+
+    for (const finding of input.findings) {
+      if (finding.filePath === undefined) {
+        continue;
+      }
+
+      const line = finding.lineEnd ?? finding.lineStart ?? 1;
+      comments.push({
+        path: finding.filePath,
+        line,
+        side: 'RIGHT',
+        body: buildReviewCommentBody(finding),
+        ...(finding.lineStart !== undefined && finding.lineEnd !== undefined && finding.lineEnd > finding.lineStart
+          ? { startLine: finding.lineStart }
+          : {}),
+      });
+    }
+
+    return this.githubReviewClient.publishReview(
+      {
+        owner,
+        repository,
+        pullRequestNumber: input.pullRequestNumber,
+        commitSha: input.headSha,
+        state: input.reviewState,
+        body: input.summaryBody,
+        comments,
+      },
+      input.accessToken,
+    );
+  }
+
+  private async persistReviewArtifacts(input: {
+    readonly reviewJobId: string;
+    readonly pullRequestId: string;
+    readonly repositoryId: string;
+    readonly findings: ReadonlyArray<ReviewFinding>;
+    readonly summaryBody: string;
+    readonly publication: PublishedReviewResult;
+    readonly providerAttempts: ReadonlyArray<ProviderAttempt>;
+    readonly executionResult: ReviewExecutionResult;
+    readonly executionMs: number;
+  }): Promise<void> {
+    const summaryThreadId = `${input.reviewJobId}:summary`;
+    await this.reviewCommentsRepository.upsertByThreadId(summaryThreadId, {
+      reviewJobId: input.reviewJobId,
+      pullRequestId: input.pullRequestId,
+      repositoryId: input.repositoryId,
+      source: 'system',
+      visibility: 'public',
+      threadId: summaryThreadId,
+      body: input.summaryBody,
+      bodyMarkdown: input.summaryBody,
+      metadata: {
+        reviewPublication: input.publication,
+        providerAttempts: input.providerAttempts,
+        executionMs: input.executionMs,
+        totalTokens: input.executionResult.totalTokens,
+        overallSeverity: input.executionResult.overallSeverity,
+      },
+    });
+
+    for (const finding of input.findings) {
+      const line = finding.lineEnd ?? finding.lineStart ?? 1;
+      const threadId = `${input.reviewJobId}:${finding.filePath ?? 'general'}:${line}:${finding.title}`;
+
+      await this.reviewCommentsRepository.upsertByThreadId(threadId, {
+        reviewJobId: input.reviewJobId,
+        pullRequestId: input.pullRequestId,
+        repositoryId: input.repositoryId,
+        source: 'ai',
+        visibility: 'public',
+        threadId,
+        path: finding.filePath ?? null,
+        lineNumber: line,
+        side: 'RIGHT',
+        body: buildReviewCommentBody(finding),
+        bodyMarkdown: buildReviewCommentBody(finding),
+        metadata: {
+          severity: finding.severity,
+          title: finding.title,
+          summary: finding.summary,
+          rationale: finding.rationale ?? null,
+          suggestion: finding.suggestion ?? null,
+          tags: finding.tags,
+          publication: input.publication,
+          providerAttempts: input.providerAttempts,
+        },
+      });
+    }
+  }
+
+  private parseJobInput(reviewJob: ReviewJob): ReviewJobInputPayload {
     const input = isRecord(reviewJob.input) ? (reviewJob.input as ReviewJobInputPayload) : {};
-    const files = Array.isArray(input.files) ? normalizeReviewFiles(input.files) : [];
 
     return {
       ...input,
-      files,
+      focusAreas: input.focusAreas !== undefined && input.focusAreas.length > 0 ? input.focusAreas : reviewFocusAreas,
     };
   }
 
-  private resolveProvider(providerName?: AIProviderName): AIProvider {
-    const resolvedProvider = providerName ?? this.resolveDefaultProviderName();
-    const cacheKey = resolvedProvider;
-    const cached = this.providerCache.get(cacheKey);
-    if (cached) {
-      return cached;
+  private resolveProviderOrder(preferredProvider?: AIProviderName): AIProviderName[] {
+    const configuredProviders: AIProviderName[] = [];
+
+    if (this.isProviderConfigured('openai')) {
+      configuredProviders.push('openai');
     }
 
-    const provider = this.createProvider(resolvedProvider);
-    this.providerCache.set(cacheKey, provider);
-    return provider;
+    if (this.isProviderConfigured('anthropic')) {
+      configuredProviders.push('anthropic');
+    }
+
+    if (this.isProviderConfigured('gemini')) {
+      configuredProviders.push('gemini');
+    }
+
+    const preferred = preferredProvider ?? this.resolveDefaultProviderName();
+    return [preferred, ...configuredProviders.filter((provider) => provider !== preferred)];
   }
 
   private resolveDefaultProviderName(): AIProviderName {
@@ -240,19 +518,42 @@ export class ReviewPipelineService {
       return configuredProvider;
     }
 
-    if (toStringValue(process.env.OPENAI_API_KEY) !== undefined) {
+    if (this.isProviderConfigured('openai')) {
       return 'openai';
     }
 
-    if (toStringValue(process.env.GEMINI_API_KEY) !== undefined) {
+    if (this.isProviderConfigured('gemini')) {
       return 'gemini';
     }
 
-    if (toStringValue(process.env.ANTHROPIC_API_KEY) !== undefined) {
+    if (this.isProviderConfigured('anthropic')) {
       return 'anthropic';
     }
 
     throw new Error('No review AI provider is configured');
+  }
+
+  private isProviderConfigured(providerName: AIProviderName): boolean {
+    if (providerName === 'openai') {
+      return toStringValue(process.env.OPENAI_API_KEY) !== undefined;
+    }
+
+    if (providerName === 'gemini') {
+      return toStringValue(process.env.GEMINI_API_KEY) !== undefined;
+    }
+
+    return toStringValue(process.env.ANTHROPIC_API_KEY) !== undefined;
+  }
+
+  private resolveProvider(providerName: AIProviderName): AIProvider {
+    const cached = this.providerCache.get(providerName);
+    if (cached) {
+      return cached;
+    }
+
+    const provider = this.createProvider(providerName);
+    this.providerCache.set(providerName, provider);
+    return provider;
   }
 
   private createProvider(providerName: AIProviderName): AIProvider {
@@ -280,5 +581,29 @@ export class ReviewPipelineService {
     }
 
     return createAIProvider('anthropic', { apiKey });
+  }
+
+  private resolveGitHubAppClient(): GitHubAppClient {
+    const appId = toStringValue(process.env.GITHUB_APP_ID);
+    const privateKey = toStringValue(process.env.GITHUB_APP_PRIVATE_KEY);
+
+    if (!appId || !privateKey) {
+      throw new Error('GitHub App credentials are required to fetch pull request diffs and publish reviews');
+    }
+
+    const credentials: GitHubAppCredentials = {
+      appId,
+      privateKey,
+    };
+
+    return new GitHubAppClient(credentials);
+  }
+
+  private isCompletedResult(value: unknown): value is ReviewOrchestrationResult {
+    if (!isRecord(value)) {
+      return false;
+    }
+
+    return value.status === 'completed' && typeof value.summary === 'string' && typeof value.overallSeverity === 'string';
   }
 }

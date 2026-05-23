@@ -1,4 +1,4 @@
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import { reviewJobs } from '../schema/review-jobs.js';
 import type { NewReviewJob } from '../schema/review-jobs.js';
 import type { DatabaseClient } from '../client/index.js';
@@ -34,6 +34,15 @@ export class ReviewJobsRepository extends BaseRepository<typeof reviewJobs> {
     return rows[0] ?? null;
   }
 
+  async findQueued(limit = 10) {
+    return this.db
+      .select()
+      .from(reviewJobs)
+      .where(eq(reviewJobs.status, 'queued'))
+      .orderBy(desc(reviewJobs.priority), asc(reviewJobs.createdAt))
+      .limit(limit);
+  }
+
   async enqueue(input: NewReviewJob) {
     const rows = await this.db.insert(reviewJobs).values(input).returning();
 
@@ -52,7 +61,15 @@ export class ReviewJobsRepository extends BaseRepository<typeof reviewJobs> {
         startedAt: now,
         updatedAt: now,
       })
-      .where(eq(reviewJobs.id, reviewJobId))
+      .where(
+        and(
+          eq(reviewJobs.id, reviewJobId),
+          or(
+            eq(reviewJobs.status, 'queued'),
+            and(eq(reviewJobs.status, 'leased'), or(isNull(reviewJobs.leaseExpiresAt), lt(reviewJobs.leaseExpiresAt, now))),
+          ),
+        ),
+      )
       .returning();
 
     return rows[0] ?? null;

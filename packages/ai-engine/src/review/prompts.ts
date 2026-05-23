@@ -3,11 +3,27 @@ import type { ReviewChunk, ReviewFocusArea } from './types.js';
 
 export const REVIEW_PROMPT_VERSION = 'review-v1';
 
-const focusGuidance: Record<ReviewFocusArea, string> = {
-  security: 'Prioritize authentication, authorization, injection, data exposure, unsafe deserialization, secrets handling, and trust-boundary violations.',
-  performance: 'Prioritize avoidable CPU, memory, I/O, network, and concurrency costs, repeated work, large payload handling, and algorithmic complexity.',
-  maintainability: 'Prioritize duplication, unclear abstractions, poor naming, brittle coupling, missing tests, and code that will be difficult to extend safely.',
-  'bug-risk': 'Prioritize edge cases, race conditions, null or undefined handling, incorrect assumptions, off-by-one errors, state transitions, and regression risk.',
+const focusTemplates: Record<ReviewFocusArea, { readonly title: string; readonly guidance: string }> = {
+  security: {
+    title: 'security review',
+    guidance: 'Prioritize authentication, authorization, injection, data exposure, unsafe deserialization, secrets handling, and trust-boundary violations.',
+  },
+  'bug-risk': {
+    title: 'bug detection',
+    guidance: 'Prioritize edge cases, race conditions, null or undefined handling, incorrect assumptions, off-by-one errors, state transitions, and regression risk.',
+  },
+  maintainability: {
+    title: 'maintainability review',
+    guidance: 'Prioritize duplication, unclear abstractions, poor naming, brittle coupling, missing tests, and code that will be difficult to extend safely.',
+  },
+  performance: {
+    title: 'performance review',
+    guidance: 'Prioritize avoidable CPU, memory, I/O, network, and concurrency costs, repeated work, large payload handling, and algorithmic complexity.',
+  },
+  architectural: {
+    title: 'architectural review',
+    guidance: 'Prioritize boundary violations, dependency direction, layering problems, cross-cutting concerns, implicit coupling, and changes that will age poorly at scale.',
+  },
 };
 
 const reviewSchemaInstruction = [
@@ -33,6 +49,7 @@ export interface ReviewPromptResult {
 }
 
 const buildUserPrompt = (input: ReviewPromptInput): string => {
+  const template = focusTemplates[input.focusArea];
   const pullRequestContext = [
     input.repositoryFullName === undefined ? null : `Repository: ${input.repositoryFullName}`,
     input.pullRequestNumber === undefined ? null : `Pull request: #${input.pullRequestNumber}`,
@@ -45,8 +62,8 @@ const buildUserPrompt = (input: ReviewPromptInput): string => {
     .join('\n\n');
 
   return [
-    `Review focus: ${input.focusArea}`,
-    focusGuidance[input.focusArea],
+    `Review focus: ${template.title}`,
+    template.guidance,
     pullRequestContext.length > 0 ? pullRequestContext : null,
     `Chunk path: ${input.chunk.sourcePath}`,
     `Chunk lines: ${input.chunk.lineStart}-${input.chunk.lineEnd}`,
@@ -68,6 +85,7 @@ export const buildReviewPrompt = (input: ReviewPromptInput): ReviewPromptResult 
         'Be precise, conservative, and specific.',
         'Never invent line numbers or file paths.',
         'Prefer high-signal findings over a long list of low-value comments.',
+        'When the patch does not provide enough context, state the uncertainty instead of guessing.',
       ].join(' '),
     },
     {

@@ -1,10 +1,10 @@
 import type { AIProviderName, AIUsage } from '../providers/types.js';
 
-export const reviewFocusAreas = ['security', 'performance', 'maintainability', 'bug-risk'] as const;
+export const reviewFocusAreas = ['security', 'bug-risk', 'maintainability', 'performance', 'architectural'] as const;
 
 export type ReviewFocusArea = (typeof reviewFocusAreas)[number];
 
-export const reviewLifecycleStates = ['queued', 'chunking', 'analyzing', 'summarizing', 'completed', 'failed'] as const;
+export const reviewLifecycleStates = ['queued', 'processing', 'chunking', 'analyzing', 'summarizing', 'completed', 'failed'] as const;
 
 export type ReviewLifecycleState = (typeof reviewLifecycleStates)[number];
 
