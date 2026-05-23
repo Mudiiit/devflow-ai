@@ -8,6 +8,7 @@ import type {
   ReviewChunkResult,
   ReviewExecutionHooks,
   ReviewExecutionInput,
+  ReviewCategory,
   ReviewFinding,
   ReviewFocusArea,
   ReviewOrchestrationResult,
@@ -22,6 +23,14 @@ interface ReviewResponsePayload {
 }
 
 const severityValues: ReadonlyArray<ReviewSeverity> = ['info', 'warning', 'critical'];
+const categoryValues: ReadonlyArray<ReviewCategory> = ['security', 'bug-detection', 'maintainability', 'performance', 'architecture'];
+const focusAreaToCategory: Record<ReviewFocusArea, ReviewCategory> = {
+  security: 'security',
+  'bug-risk': 'bug-detection',
+  maintainability: 'maintainability',
+  performance: 'performance',
+  architectural: 'architecture',
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
@@ -29,6 +38,10 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
 
 const isReviewSeverity = (value: unknown): value is ReviewSeverity => {
   return typeof value === 'string' && severityValues.includes(value as ReviewSeverity);
+};
+
+const isReviewCategory = (value: unknown): value is ReviewCategory => {
+  return typeof value === 'string' && categoryValues.includes(value as ReviewCategory);
 };
 
 const isStringArray = (value: unknown): value is ReadonlyArray<string> => {
@@ -44,7 +57,7 @@ const parseResponsePayload = (content: string): ReviewResponsePayload => {
   return parsed;
 };
 
-const normalizeFindings = (value: unknown): ReviewFinding[] => {
+const normalizeFindings = (value: unknown, focusArea: ReviewFocusArea): ReviewFinding[] => {
   if (!Array.isArray(value)) {
     return [];
   }
@@ -57,6 +70,11 @@ const normalizeFindings = (value: unknown): ReviewFinding[] => {
     }
 
     const severity = isReviewSeverity(item.severity) ? item.severity : 'info';
+    const category = isReviewCategory(item.category)
+      ? item.category
+      : isReviewCategory(item.focusArea)
+        ? item.focusArea
+        : focusAreaToCategory[focusArea];
     const title = typeof item.title === 'string' && item.title.trim().length > 0 ? item.title.trim() : 'Review finding';
     const summary = typeof item.summary === 'string' && item.summary.trim().length > 0 ? item.summary.trim() : title;
     const rationale = typeof item.rationale === 'string' && item.rationale.trim().length > 0 ? item.rationale.trim() : undefined;
@@ -69,6 +87,7 @@ const normalizeFindings = (value: unknown): ReviewFinding[] => {
 
     const finding: ReviewFinding = {
       severity,
+      category,
       title,
       summary,
       tags,
@@ -154,12 +173,17 @@ export class ReviewExecutionEngine {
 
         const response = await input.provider.complete(request, context);
         const payload = parseResponsePayload(response.content);
-        const findings = normalizeFindings(payload.findings ?? payload.issues);
+        const findings = normalizeFindings(payload.findings ?? payload.issues, focusArea);
         const chunkResult: ReviewChunkResult = {
           chunkIndex: chunk.chunkIndex,
           sourcePath: chunk.sourcePath,
+          ...(chunk.previousPath === undefined ? {} : { previousPath: chunk.previousPath }),
+          fileStatus: chunk.fileStatus,
+          fileKind: chunk.fileKind,
           content: chunk.content,
           tokenCount: chunk.tokenCount,
+          lineStart: chunk.lineStart,
+          lineEnd: chunk.lineEnd,
           focusArea,
           promptVersion: prompt.promptVersion,
           provider: response.provider,

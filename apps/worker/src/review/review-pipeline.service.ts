@@ -89,7 +89,7 @@ const mapSeverityToReviewState = (severity: ReviewSeverity, findingCount: number
 };
 
 const buildReviewCommentBody = (finding: ReviewFinding): string => {
-  const parts = [`**${finding.title}**`, finding.summary];
+  const parts = [`**[${finding.category}] ${finding.title}**`, `Severity: ${finding.severity}`, finding.summary];
 
   if (finding.rationale !== undefined) {
     parts.push(`Rationale: ${finding.rationale}`);
@@ -104,6 +104,71 @@ const buildReviewCommentBody = (finding: ReviewFinding): string => {
   }
 
   return parts.join('\n\n');
+};
+
+const toFindingLine = (finding: ReviewFinding): number => {
+  return finding.lineEnd ?? finding.lineStart ?? 1;
+};
+
+const toFindingGroupKey = (finding: ReviewFinding): string => {
+  return `${finding.filePath ?? 'general'}:${toFindingLine(finding)}`;
+};
+
+const buildGroupedReviewCommentBody = (findings: ReadonlyArray<ReviewFinding>): string => {
+  return findings.map((finding) => buildReviewCommentBody(finding)).join('\n\n---\n\n');
+};
+
+type ReviewCommentGroup = {
+  readonly key: string;
+  readonly path?: string;
+  readonly line: number;
+  readonly startLine?: number;
+  readonly body: string;
+  readonly findings: ReadonlyArray<ReviewFinding>;
+};
+
+const groupReviewFindings = (findings: ReadonlyArray<ReviewFinding>): ReviewCommentGroup[] => {
+  const groups = new Map<string, ReviewFinding[]>();
+
+  for (const finding of findings) {
+    const key = toFindingGroupKey(finding);
+    const existing = groups.get(key);
+    if (existing === undefined) {
+      groups.set(key, [finding]);
+      continue;
+    }
+
+    existing.push(finding);
+  }
+
+  const result: ReviewCommentGroup[] = [];
+
+  for (const [key, groupedFindings] of groups.entries()) {
+    const firstFinding = groupedFindings[0];
+    if (firstFinding === undefined) {
+      continue;
+    }
+
+    const line = groupedFindings.reduce((current, finding) => Math.max(current, toFindingLine(finding)), 1);
+    const startLine = groupedFindings.reduce<number | undefined>((current, finding) => {
+      if (finding.lineStart === undefined) {
+        return current;
+      }
+
+      return current === undefined ? finding.lineStart : Math.min(current, finding.lineStart);
+    }, undefined);
+
+    result.push({
+      key,
+      ...(firstFinding.filePath === undefined ? {} : { path: firstFinding.filePath }),
+      line,
+      ...(startLine === undefined || startLine >= line ? {} : { startLine }),
+      body: buildGroupedReviewCommentBody(groupedFindings),
+      findings: groupedFindings,
+    });
+  }
+
+  return result;
 };
 
 const buildSummaryBody = (input: {
@@ -346,15 +411,18 @@ export class ReviewPipelineService {
                 pullRequestId: input.reviewJob.pullRequestId,
                 repositoryId: input.reviewJob.repositoryId,
                 chunkIndex: chunkResult.chunkIndex,
-                chunkType: 'diff',
+                chunkType: chunkResult.fileKind === 'patch' ? 'diff' : 'file',
                 sourcePath: chunkResult.sourcePath,
-                lineStart: chunkResult.content.length > 0 ? 1 : null,
-                lineEnd: chunkResult.content.length > 0 ? chunkResult.content.split(/\r?\n/).length : null,
+                lineStart: chunkResult.lineStart ?? null,
+                lineEnd: chunkResult.lineEnd ?? null,
                 tokenCount: chunkResult.tokenCount,
                 content: chunkResult.content,
                 summary: chunkResult.summary,
                 metadata: {
                   focusArea: chunkResult.focusArea,
+                  fileStatus: chunkResult.fileStatus,
+                  fileKind: chunkResult.fileKind,
+                  previousPath: chunkResult.previousPath ?? null,
                   promptVersion: chunkResult.promptVersion,
                   provider: chunkResult.provider,
                   model: chunkResult.model,
@@ -393,20 +461,17 @@ export class ReviewPipelineService {
     const { owner, repository } = splitRepositoryFullName(input.repositoryFullName);
     const comments: GitHubReviewComment[] = [];
 
-    for (const finding of input.findings) {
-      if (finding.filePath === undefined) {
+    for (const group of groupReviewFindings(input.findings)) {
+      if (group.path === undefined) {
         continue;
       }
 
-      const line = finding.lineEnd ?? finding.lineStart ?? 1;
       comments.push({
-        path: finding.filePath,
-        line,
+        path: group.path,
+        line: group.line,
         side: 'RIGHT',
-        body: buildReviewCommentBody(finding),
-        ...(finding.lineStart !== undefined && finding.lineEnd !== undefined && finding.lineEnd > finding.lineStart
-          ? { startLine: finding.lineStart }
-          : {}),
+        body: group.body,
+        ...(group.startLine === undefined ? {} : { startLine: group.startLine }),
       });
     }
 
@@ -454,9 +519,12 @@ export class ReviewPipelineService {
       },
     });
 
-    for (const finding of input.findings) {
-      const line = finding.lineEnd ?? finding.lineStart ?? 1;
-      const threadId = `${input.reviewJobId}:${finding.filePath ?? 'general'}:${line}:${finding.title}`;
+    for (const group of groupReviewFindings(input.findings)) {
+      const threadId = `${input.reviewJobId}:${group.key}`;
+      const representativeFinding = group.findings[0];
+      if (representativeFinding === undefined) {
+        continue;
+      }
 
       await this.reviewCommentsRepository.upsertByThreadId(threadId, {
         reviewJobId: input.reviewJobId,
@@ -465,18 +533,20 @@ export class ReviewPipelineService {
         source: 'ai',
         visibility: 'public',
         threadId,
-        path: finding.filePath ?? null,
-        lineNumber: line,
+        path: representativeFinding.filePath ?? null,
+        lineNumber: group.line,
         side: 'RIGHT',
-        body: buildReviewCommentBody(finding),
-        bodyMarkdown: buildReviewCommentBody(finding),
+        body: group.body,
+        bodyMarkdown: group.body,
         metadata: {
-          severity: finding.severity,
-          title: finding.title,
-          summary: finding.summary,
-          rationale: finding.rationale ?? null,
-          suggestion: finding.suggestion ?? null,
-          tags: finding.tags,
+          findings: group.findings,
+          severity: representativeFinding.severity,
+          category: representativeFinding.category,
+          title: representativeFinding.title,
+          summary: representativeFinding.summary,
+          rationale: representativeFinding.rationale ?? null,
+          suggestion: representativeFinding.suggestion ?? null,
+          tags: representativeFinding.tags,
           publication: input.publication,
           providerAttempts: input.providerAttempts,
         },

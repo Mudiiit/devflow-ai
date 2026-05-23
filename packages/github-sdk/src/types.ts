@@ -24,9 +24,17 @@ export interface GitHubPullRequestFile {
 
 export interface ReviewableFileDiff {
   readonly path: string;
+  readonly previousPath?: string;
+  readonly status: GitHubPullRequestFile['status'];
+  readonly kind: 'patch' | 'binary' | 'skipped';
   readonly diff: string;
+  readonly summary: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changes: number;
   readonly language?: string;
   readonly isBinary?: boolean;
+  readonly isSkipped?: boolean;
 }
 
 export type GitHubReviewState = 'comment' | 'approve' | 'request_changes';

@@ -4,6 +4,10 @@ export const reviewFocusAreas = ['security', 'bug-risk', 'maintainability', 'per
 
 export type ReviewFocusArea = (typeof reviewFocusAreas)[number];
 
+export const reviewCategories = ['security', 'bug-detection', 'maintainability', 'performance', 'architecture'] as const;
+
+export type ReviewCategory = (typeof reviewCategories)[number];
+
 export const reviewLifecycleStates = ['queued', 'processing', 'chunking', 'analyzing', 'summarizing', 'completed', 'failed'] as const;
 
 export type ReviewLifecycleState = (typeof reviewLifecycleStates)[number];
@@ -12,16 +16,31 @@ export const reviewSeverities = ['info', 'warning', 'critical'] as const;
 
 export type ReviewSeverity = (typeof reviewSeverities)[number];
 
+export type ReviewFileStatus = 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+
+export type ReviewFileKind = 'patch' | 'binary' | 'skipped';
+
 export interface ReviewFileDiff {
   readonly path: string;
+  readonly previousPath?: string;
+  readonly status: ReviewFileStatus;
+  readonly kind: ReviewFileKind;
   readonly diff: string;
+  readonly summary: string;
+  readonly additions: number;
+  readonly deletions: number;
+  readonly changes: number;
   readonly language?: string;
   readonly isBinary?: boolean;
+  readonly isSkipped?: boolean;
 }
 
 export interface ReviewChunk {
   readonly chunkIndex: number;
   readonly sourcePath: string;
+  readonly previousPath?: string;
+  readonly fileStatus: ReviewFileStatus;
+  readonly fileKind: ReviewFileKind;
   readonly content: string;
   readonly tokenCount: number;
   readonly lineStart: number;
@@ -31,6 +50,7 @@ export interface ReviewChunk {
 
 export interface ReviewFinding {
   readonly severity: ReviewSeverity;
+  readonly category: ReviewCategory;
   readonly title: string;
   readonly summary: string;
   readonly rationale?: string;
@@ -45,8 +65,13 @@ export interface ReviewFinding {
 export interface ReviewChunkResult {
   readonly chunkIndex: number;
   readonly sourcePath: string;
+  readonly previousPath?: string;
+  readonly fileStatus: ReviewFileStatus;
+  readonly fileKind: ReviewFileKind;
   readonly content: string;
   readonly tokenCount: number;
+  readonly lineStart: number;
+  readonly lineEnd: number;
   readonly focusArea: ReviewFocusArea;
   readonly promptVersion: string;
   readonly provider: AIProviderName;

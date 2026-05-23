@@ -10,7 +10,7 @@ const normalizeKey = (finding: ReviewFinding): string => {
   const filePath = finding.filePath ?? '';
   const lineStart = finding.lineStart ?? 0;
   const lineEnd = finding.lineEnd ?? 0;
-  return `${finding.severity}:${filePath}:${lineStart}:${lineEnd}:${finding.title.trim().toLowerCase()}`;
+  return `${finding.severity}:${finding.category}:${filePath}:${lineStart}:${lineEnd}:${finding.title.trim().toLowerCase()}`;
 };
 
 const sumSeverity = (counts: Record<ReviewSeverity, number>, severity: ReviewSeverity): void => {

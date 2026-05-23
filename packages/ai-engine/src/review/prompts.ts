@@ -28,7 +28,7 @@ const focusTemplates: Record<ReviewFocusArea, { readonly title: string; readonly
 
 const reviewSchemaInstruction = [
   'Return a single JSON object with this shape:',
-  '{"summary": string, "findings": [{"severity": "info" | "warning" | "critical", "title": string, "summary": string, "rationale"?: string, "filePath"?: string, "lineStart"?: number, "lineEnd"?: number, "suggestion"?: string, "confidence"?: number, "tags"?: string[]}]}',
+  '{"summary": string, "findings": [{"severity": "info" | "warning" | "critical", "category": "security" | "bug-detection" | "maintainability" | "performance" | "architecture", "title": string, "summary": string, "rationale"?: string, "filePath"?: string, "lineStart"?: number, "lineEnd"?: number, "suggestion"?: string, "confidence"?: number, "tags"?: string[]}]}',
   'Keep findings actionable and concise.',
   'If there are no findings, return an empty findings array and a short summary.',
 ].join('\n');
@@ -66,9 +66,17 @@ const buildUserPrompt = (input: ReviewPromptInput): string => {
     template.guidance,
     pullRequestContext.length > 0 ? pullRequestContext : null,
     `Chunk path: ${input.chunk.sourcePath}`,
+    input.chunk.previousPath === undefined ? null : `Previous path: ${input.chunk.previousPath}`,
+    `File status: ${input.chunk.fileStatus}`,
+    `File kind: ${input.chunk.fileKind}`,
     `Chunk lines: ${input.chunk.lineStart}-${input.chunk.lineEnd}`,
     `Estimated tokens: ${input.chunk.tokenCount}`,
-    'Review the following diff chunk and report only issues that are relevant to this focus area.',
+    input.chunk.fileKind === 'binary'
+      ? 'This chunk represents a binary or generated file. Focus on file-level risks, unsafe handling, or missing safeguards only when they are strongly evidenced.'
+      : input.chunk.fileKind === 'skipped'
+        ? 'This chunk has no diff patch content. Focus on repository-level risks only when they are strongly evidenced by metadata.'
+        : 'Review the following diff chunk and report only issues that are relevant to this focus area.',
+    'Allowed categories: security, bug-detection, maintainability, performance, architecture.',
     'Diff chunk:\n```diff\n' + input.chunk.content + '\n```',
     reviewSchemaInstruction,
   ]
