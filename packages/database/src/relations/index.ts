@@ -5,6 +5,7 @@ export { pullRequestsRelations } from './pull-requests.relations.js';
 export { reviewJobsRelations } from './review-jobs.relations.js';
 export { reviewCommentsRelations } from './review-comments.relations.js';
 export { aiReviewChunksRelations } from './ai-review-chunks.relations.js';
+export { reviewMetricsRelations } from './review-metrics.relations.js';
 export { embeddingsRelations } from './embeddings.relations.js';
 export { notificationsRelations } from './notifications.relations.js';
 export { auditLogsRelations } from './audit-logs.relations.js';
@@ -18,6 +19,7 @@ import { pullRequestsRelations } from './pull-requests.relations.js';
 import { repositoriesRelations } from './repositories.relations.js';
 import { reviewCommentsRelations } from './review-comments.relations.js';
 import { reviewJobsRelations } from './review-jobs.relations.js';
+import { reviewMetricsRelations } from './review-metrics.relations.js';
 import { usersRelations } from './users.relations.js';
 
 export const databaseRelations = {
@@ -28,6 +30,7 @@ export const databaseRelations = {
   reviewJobsRelations,
   reviewCommentsRelations,
   aiReviewChunksRelations,
+  reviewMetricsRelations,
   embeddingsRelations,
   notificationsRelations,
   auditLogsRelations,

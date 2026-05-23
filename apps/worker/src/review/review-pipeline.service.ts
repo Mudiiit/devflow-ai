@@ -20,6 +20,7 @@ import {
   RepositoriesRepository,
   ReviewCommentsRepository,
   ReviewJobsRepository,
+  ReviewMetricsRepository,
   type ReviewJob,
 } from '@devflow/database';
 import {
@@ -76,16 +77,24 @@ const splitRepositoryFullName = (fullName: string): { readonly owner: string; re
   return { owner, repository };
 };
 
-const mapSeverityToReviewState = (severity: ReviewSeverity, findingCount: number): GitHubReviewState => {
-  if (findingCount === 0) {
+const mapSeverityToReviewState = (input: {
+  readonly severity: ReviewSeverity;
+  readonly findingCount: number;
+  readonly riskScore: number;
+}): GitHubReviewState => {
+  if (input.findingCount === 0) {
     return 'approve';
   }
 
-  if (severity === 'critical') {
+  if (input.severity === 'critical' || input.riskScore >= 70) {
     return 'request_changes';
   }
 
   return 'comment';
+};
+
+const normalizeTitleKey = (title: string): string => {
+  return title.trim().toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 };
 
 const buildReviewCommentBody = (finding: ReviewFinding): string => {
@@ -106,18 +115,6 @@ const buildReviewCommentBody = (finding: ReviewFinding): string => {
   return parts.join('\n\n');
 };
 
-const toFindingLine = (finding: ReviewFinding): number => {
-  return finding.lineEnd ?? finding.lineStart ?? 1;
-};
-
-const toFindingGroupKey = (finding: ReviewFinding): string => {
-  return `${finding.filePath ?? 'general'}:${toFindingLine(finding)}`;
-};
-
-const buildGroupedReviewCommentBody = (findings: ReadonlyArray<ReviewFinding>): string => {
-  return findings.map((finding) => buildReviewCommentBody(finding)).join('\n\n---\n\n');
-};
-
 type ReviewCommentGroup = {
   readonly key: string;
   readonly path?: string;
@@ -127,48 +124,140 @@ type ReviewCommentGroup = {
   readonly findings: ReadonlyArray<ReviewFinding>;
 };
 
-const groupReviewFindings = (findings: ReadonlyArray<ReviewFinding>): ReviewCommentGroup[] => {
-  const groups = new Map<string, ReviewFinding[]>();
+type ReviewCommentGroupBuilder = {
+  key: string;
+  path?: string;
+  line: number;
+  startLine?: number;
+  body: string;
+  findings: ReviewFinding[];
+  titleKeys: Set<string>;
+  severityRank: number;
+  avgConfidence: number;
+};
 
-  for (const finding of findings) {
-    const key = toFindingGroupKey(finding);
-    const existing = groups.get(key);
-    if (existing === undefined) {
-      groups.set(key, [finding]);
-      continue;
-    }
+const toFindingLineRange = (finding: ReviewFinding): { readonly start: number; readonly end: number } => {
+  const start = finding.lineStart ?? finding.lineEnd ?? 1;
+  const end = finding.lineEnd ?? start;
+  return { start, end };
+};
 
-    existing.push(finding);
+const hasLineOverlap = (group: ReviewCommentGroupBuilder, finding: ReviewFinding): boolean => {
+  const range = toFindingLineRange(finding);
+  return range.start <= group.line + 2 && range.end >= (group.startLine ?? group.line) - 2;
+};
+
+const buildGroupedReviewCommentBody = (findings: ReadonlyArray<ReviewFinding>): string => {
+  return findings.map((finding) => buildReviewCommentBody(finding)).join('\n\n---\n\n');
+};
+
+const getFindingSeverityRank = (finding: ReviewFinding): number => {
+  if (finding.severity === 'critical') {
+    return 3;
   }
 
-  const result: ReviewCommentGroup[] = [];
+  if (finding.severity === 'warning') {
+    return 2;
+  }
 
-  for (const [key, groupedFindings] of groups.entries()) {
-    const firstFinding = groupedFindings[0];
-    if (firstFinding === undefined) {
+  return 1;
+};
+
+const groupReviewFindings = (findings: ReadonlyArray<ReviewFinding>): ReviewCommentGroup[] => {
+  const groups: ReviewCommentGroupBuilder[] = [];
+  const sorted = [...findings].filter((finding) => finding.filePath !== undefined).sort((left, right) => {
+    const pathDelta = (left.filePath ?? '').localeCompare(right.filePath ?? '');
+    if (pathDelta !== 0) {
+      return pathDelta;
+    }
+
+    return (left.lineStart ?? left.lineEnd ?? 0) - (right.lineStart ?? right.lineEnd ?? 0);
+  });
+
+  for (const finding of sorted) {
+    const titleKey = normalizeTitleKey(finding.title);
+    const targetGroup = groups.find((group) =>
+      group.path === finding.filePath && hasLineOverlap(group, finding) &&
+      (group.titleKeys.has(titleKey) || group.findings[0]?.category === finding.category),
+    );
+
+    if (targetGroup) {
+      targetGroup.findings.push(finding);
+      targetGroup.titleKeys.add(titleKey);
+      targetGroup.body = buildGroupedReviewCommentBody(targetGroup.findings);
+      const range = toFindingLineRange(finding);
+      targetGroup.startLine = Math.min(targetGroup.startLine ?? range.start, range.start);
+      targetGroup.line = Math.max(targetGroup.line, range.end);
+      targetGroup.severityRank = Math.max(targetGroup.severityRank, getFindingSeverityRank(finding));
+      const confidenceValues = targetGroup.findings
+        .map((entry) => entry.confidence)
+        .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+      targetGroup.avgConfidence = confidenceValues.length > 0
+        ? confidenceValues.reduce((total, value) => total + value, 0) / confidenceValues.length
+        : targetGroup.avgConfidence;
       continue;
     }
 
-    const line = groupedFindings.reduce((current, finding) => Math.max(current, toFindingLine(finding)), 1);
-    const startLine = groupedFindings.reduce<number | undefined>((current, finding) => {
-      if (finding.lineStart === undefined) {
-        return current;
-      }
-
-      return current === undefined ? finding.lineStart : Math.min(current, finding.lineStart);
-    }, undefined);
-
-    result.push({
-      key,
-      ...(firstFinding.filePath === undefined ? {} : { path: firstFinding.filePath }),
-      line,
-      ...(startLine === undefined || startLine >= line ? {} : { startLine }),
-      body: buildGroupedReviewCommentBody(groupedFindings),
-      findings: groupedFindings,
+    const range = toFindingLineRange(finding);
+    groups.push({
+      key: `${finding.filePath ?? 'general'}:${range.start}-${range.end}:${titleKey}`,
+      path: finding.filePath,
+      line: range.end,
+      startLine: range.start < range.end ? range.start : undefined,
+      body: buildGroupedReviewCommentBody([finding]),
+      findings: [finding],
+      titleKeys: new Set([titleKey]),
+      severityRank: getFindingSeverityRank(finding),
+      avgConfidence: typeof finding.confidence === 'number' ? finding.confidence : 0.6,
     });
   }
 
-  return result;
+  const MAX_INLINE_COMMENTS = 20;
+  const MAX_COMMENTS_PER_FILE = 6;
+  const byFile = new Map<string, ReviewCommentGroupBuilder[]>();
+
+  for (const group of groups) {
+    const path = group.path ?? '';
+    const bucket = byFile.get(path);
+    if (bucket === undefined) {
+      byFile.set(path, [group]);
+    } else {
+      bucket.push(group);
+    }
+  }
+
+  const limited: ReviewCommentGroupBuilder[] = [];
+
+  for (const [, bucket] of byFile.entries()) {
+    bucket.sort((left, right) => {
+      const severityDelta = right.severityRank - left.severityRank;
+      if (severityDelta !== 0) {
+        return severityDelta;
+      }
+
+      return (right.avgConfidence ?? 0) - (left.avgConfidence ?? 0);
+    });
+
+    limited.push(...bucket.slice(0, MAX_COMMENTS_PER_FILE));
+  }
+
+  limited.sort((left, right) => {
+    const severityDelta = right.severityRank - left.severityRank;
+    if (severityDelta !== 0) {
+      return severityDelta;
+    }
+
+    return (right.avgConfidence ?? 0) - (left.avgConfidence ?? 0);
+  });
+
+  return limited.slice(0, MAX_INLINE_COMMENTS).map((group) => ({
+    key: group.key,
+    ...(group.path === undefined ? {} : { path: group.path }),
+    line: group.line,
+    ...(group.startLine === undefined ? {} : { startLine: group.startLine }),
+    body: group.body,
+    findings: group.findings,
+  }));
 };
 
 const buildSummaryBody = (input: {
@@ -179,19 +268,29 @@ const buildSummaryBody = (input: {
   readonly providerAttempts: ReadonlyArray<ProviderAttempt>;
 }): string => {
   const providerSummary = input.providerAttempts.map((attempt) => `${attempt.provider}:${attempt.model}`).join(', ');
+  const topFindings = input.result.findings.slice(0, 3).map((finding) => {
+    const confidence = typeof finding.confidence === 'number' ? Math.round(finding.confidence * 100) : 60;
+    const line = finding.lineStart ?? finding.lineEnd;
+    const location = finding.filePath ? ` (${finding.filePath}${line ? `:${line}` : ''})` : '';
+    return `- [${finding.severity}] ${finding.title}${location} (confidence ${confidence}/100)`;
+  });
 
   return [
     `DevFlow AI review for ${input.repositoryFullName} #${input.pullRequestNumber}`,
     `Overall severity: ${input.result.overallSeverity}`,
     `Review state: ${input.reviewState}`,
     `Findings: ${input.result.findings.length}`,
+    `Risk score: ${input.result.riskScore}/100`,
+    `Confidence score: ${input.result.confidenceScore}/100`,
     `Chunks: ${input.result.chunkCount}`,
     `Focus areas: ${input.result.focusAreaCount}`,
     `Tokens processed: ${input.result.totalTokens}`,
     `Execution time: ${input.result.executionMs}ms`,
     `Provider attempts: ${providerSummary}`,
+    ...(input.result.suppressedFindings > 0 ? [`Suppressed findings: ${input.result.suppressedFindings}`] : []),
     '',
     input.result.summary,
+    ...(topFindings.length > 0 ? ['', 'Top findings:', ...topFindings] : []),
   ].join('\n');
 };
 
@@ -208,6 +307,7 @@ export class ReviewPipelineService {
     private readonly reviewCommentsRepository: ReviewCommentsRepository,
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly repositoriesRepository: RepositoriesRepository,
+    private readonly reviewMetricsRepository: ReviewMetricsRepository,
   ) {}
 
   async processReviewJob(reviewJobId: string): Promise<ReviewOrchestrationResult> {
@@ -294,7 +394,11 @@ export class ReviewPipelineService {
         providerAttempts,
       });
       const executionMs = Date.now() - startedAt;
-      const reviewState = mapSeverityToReviewState(executionResult.overallSeverity, executionResult.findings.length);
+      const reviewState = mapSeverityToReviewState({
+        severity: executionResult.overallSeverity,
+        findingCount: executionResult.findings.length,
+        riskScore: executionResult.riskScore,
+      });
       const summaryBody = buildSummaryBody({
         repositoryFullName: repository.fullName,
         pullRequestNumber: pullRequest.number,
@@ -516,6 +620,34 @@ export class ReviewPipelineService {
         executionMs: input.executionMs,
         totalTokens: input.executionResult.totalTokens,
         overallSeverity: input.executionResult.overallSeverity,
+        riskScore: input.executionResult.riskScore,
+        confidenceScore: input.executionResult.confidenceScore,
+        suppressedFindings: input.executionResult.suppressedFindings,
+      },
+    });
+
+    await this.reviewMetricsRepository.upsertForReviewJob({
+      reviewJobId: input.reviewJobId,
+      pullRequestId: input.pullRequestId,
+      repositoryId: input.repositoryId,
+      overallSeverity: input.executionResult.overallSeverity,
+      riskScore: input.executionResult.riskScore,
+      confidenceScore: input.executionResult.confidenceScore,
+      findingCount: input.executionResult.findings.length,
+      suppressedCount: input.executionResult.suppressedFindings,
+      chunkCount: input.executionResult.chunkCount,
+      focusAreaCount: input.executionResult.focusAreaCount,
+      totalTokens: input.executionResult.totalTokens,
+      executionMs: input.executionMs,
+      summary: input.executionResult.summary,
+      provider: input.executionResult.selectedProvider,
+      model: input.executionResult.selectedModel,
+      severityCounts: input.executionResult.severityCounts,
+      categoryCounts: input.executionResult.categoryCounts,
+      publishedAt: new Date(),
+      metadata: {
+        providerAttempts: input.providerAttempts,
+        githubReview: input.publication,
       },
     });
 

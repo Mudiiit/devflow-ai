@@ -9,6 +9,7 @@ import {
   RepositoriesRepository,
   ReviewCommentsRepository,
   ReviewJobsRepository,
+  ReviewMetricsRepository,
   UsersRepository,
   type DatabaseClient,
 } from '@devflow/database';
@@ -59,6 +60,11 @@ const repositoryProviders = [
     provide: AiReviewChunksRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new AiReviewChunksRepository(db),
+  },
+  {
+    provide: ReviewMetricsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new ReviewMetricsRepository(db),
   },
 ];
 

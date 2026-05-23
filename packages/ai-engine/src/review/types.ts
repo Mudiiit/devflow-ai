@@ -88,7 +88,11 @@ export interface ReviewAggregationResult {
   readonly findings: ReadonlyArray<ReviewFinding>;
   readonly chunkResults: ReadonlyArray<ReviewChunkResult>;
   readonly severityCounts: Readonly<Record<ReviewSeverity, number>>;
+  readonly categoryCounts: Readonly<Record<ReviewCategory, number>>;
   readonly totalTokens: number;
+  readonly riskScore: number;
+  readonly confidenceScore: number;
+  readonly suppressedFindings: number;
 }
 
 export interface ReviewOrchestrationResult extends ReviewAggregationResult {

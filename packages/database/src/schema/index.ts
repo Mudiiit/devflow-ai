@@ -25,6 +25,9 @@ export type { ReviewComment, NewReviewComment } from './review-comments.js';
 export { aiReviewChunks } from './ai-review-chunks.js';
 export type { AiReviewChunk, NewAiReviewChunk } from './ai-review-chunks.js';
 
+export { reviewMetrics } from './review-metrics.js';
+export type { ReviewMetrics, NewReviewMetrics } from './review-metrics.js';
+
 export { embeddings } from './embeddings.js';
 export type { Embedding, NewEmbedding } from './embeddings.js';
 
@@ -47,6 +50,7 @@ import { pullRequests } from './pull-requests.js';
 import { repositories } from './repositories.js';
 import { reviewComments } from './review-comments.js';
 import { reviewJobs } from './review-jobs.js';
+import { reviewMetrics } from './review-metrics.js';
 import { users } from './users.js';
 
 // Export a single schema object so Drizzle can infer the entire database shape
@@ -61,6 +65,7 @@ export const databaseSchema = {
   reviewJobs,
   reviewComments,
   aiReviewChunks,
+  reviewMetrics,
   embeddings,
   notifications,
   auditLogs,

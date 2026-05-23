@@ -29,6 +29,7 @@ const focusTemplates: Record<ReviewFocusArea, { readonly title: string; readonly
 const reviewSchemaInstruction = [
   'Return a single JSON object with this shape:',
   '{"summary": string, "findings": [{"severity": "info" | "warning" | "critical", "category": "security" | "bug-detection" | "maintainability" | "performance" | "architecture", "title": string, "summary": string, "rationale"?: string, "filePath"?: string, "lineStart"?: number, "lineEnd"?: number, "suggestion"?: string, "confidence"?: number, "tags"?: string[]}]}',
+  'Set confidence to a number between 0 and 1 based on how certain you are the issue is real.',
   'Keep findings actionable and concise.',
   'If there are no findings, return an empty findings array and a short summary.',
 ].join('\n');

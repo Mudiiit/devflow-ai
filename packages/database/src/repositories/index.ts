@@ -8,6 +8,7 @@ export { PullRequestsRepository } from './pull-requests.repository.js';
 export { ReviewJobsRepository } from './review-jobs.repository.js';
 export { ReviewCommentsRepository } from './review-comments.repository.js';
 export { AiReviewChunksRepository } from './ai-review-chunks.repository.js';
+export { ReviewMetricsRepository } from './review-metrics.repository.js';
 export { EmbeddingsRepository } from './embeddings.repository.js';
 export { NotificationsRepository } from './notifications.repository.js';
 export { AuditLogsRepository } from './audit-logs.repository.js';
