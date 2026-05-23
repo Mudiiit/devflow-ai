@@ -1,0 +1,95 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalDependencies": [
+    "pnpm-lock.yaml",
+    ".env",
+    ".env.*",
+    ".env.local",
+    ".env.*local",
+    "turbo.json"
+  ],
+  "globalEnv": [
+    "CI",
+    "NODE_ENV",
+    "NEXT_TELEMETRY_DISABLED",
+    "TURBO_TEAM",
+    "TURBO_TOKEN",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "JWT_SECRET",
+    "NEXTAUTH_SECRET",
+    "NEXTAUTH_URL",
+    "OPENAI_API_KEY",
+    "GEMINI_API_KEY",
+    "GITHUB_APP_ID",
+    "GITHUB_APP_PRIVATE_KEY",
+    "GITHUB_CLIENT_ID",
+    "GITHUB_CLIENT_SECRET",
+    "GITHUB_WEBHOOK_SECRET"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "dist/**", "coverage/**", "!dist/**/*.tsbuildinfo", "!**/.next/cache/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "dependsOn": ["^lint"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**", "test-results/**", "playwright-report/**"]
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "test:e2e": {
+      "cache": false,
+      "dependsOn": ["^build"],
+      "outputs": ["playwright-report/**", "test-results/**"]
+    },
+    "format": {
+      "outputs": []
+    },
+    "clean": {
+      "cache": false,
+      "outputs": []
+    },
+    "db:generate": {
+      "outputs": ["packages/database/src/migrations/**"]
+    },
+    "db:migrate": {
+      "cache": false,
+      "outputs": []
+    },
+    "db:push": {
+      "cache": false,
+      "outputs": []
+    },
+    "db:seed": {
+      "cache": false,
+      "outputs": []
+    },
+    "worker:dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "api:dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "web:dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
