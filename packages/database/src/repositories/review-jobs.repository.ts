@@ -16,9 +16,19 @@ export class ReviewJobsRepository extends BaseRepository<typeof reviewJobs> {
       .where(
         and(
           eq(reviewJobs.pullRequestId, pullRequestId),
-          inArray(reviewJobs.status, ['queued', 'leased', 'processing']),
+          inArray(reviewJobs.status, ['queued', 'leased', 'chunking', 'analyzing', 'summarizing', 'processing']),
         ),
       )
+      .limit(1);
+
+    return rows[0] ?? null;
+  }
+
+  async findByLeaseToken(leaseToken: string) {
+    const rows = await this.db
+      .select()
+      .from(reviewJobs)
+      .where(eq(reviewJobs.leaseToken, leaseToken))
       .limit(1);
 
     return rows[0] ?? null;
@@ -28,5 +38,37 @@ export class ReviewJobsRepository extends BaseRepository<typeof reviewJobs> {
     const rows = await this.db.insert(reviewJobs).values(input).returning();
 
     return rows[0]!;
+  }
+
+  async claimLease(reviewJobId: string, leaseToken: string, leaseDurationMs = 15 * 60 * 1000) {
+    const now = new Date();
+    const rows = await this.db
+      .update(reviewJobs)
+      .set({
+        status: 'leased',
+        leaseToken,
+        leasedAt: now,
+        leaseExpiresAt: new Date(now.getTime() + leaseDurationMs),
+        startedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(reviewJobs.id, reviewJobId))
+      .returning();
+
+    return rows[0] ?? null;
+  }
+
+  async updateStatus(reviewJobId: string, status: NewReviewJob['status'], patch: Partial<NewReviewJob> = {}) {
+    const rows = await this.db
+      .update(reviewJobs)
+      .set({
+        ...patch,
+        status,
+        updatedAt: new Date(),
+      })
+      .where(eq(reviewJobs.id, reviewJobId))
+      .returning();
+
+    return rows[0] ?? null;
   }
 }

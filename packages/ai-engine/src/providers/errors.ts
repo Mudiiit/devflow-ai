@@ -16,8 +16,8 @@ export interface AIErrorOptions {
 
 export class AIProviderError extends Error {
   public readonly code: AIErrorCode;
-  public readonly provider?: AIProviderName;
-  public readonly statusCode?: number;
+  public readonly provider: AIProviderName | undefined;
+  public readonly statusCode: number | undefined;
   public readonly retryable: boolean;
 
   public constructor(code: AIErrorCode, message: string, options: AIErrorOptions = {}) {

@@ -25,7 +25,17 @@ export const pullRequestReviewStateEnum = pgEnum('pull_request_review_state', [
   'commented',
   'failed',
 ]);
-export const reviewJobStatusEnum = pgEnum('review_job_status', ['queued', 'leased', 'processing', 'completed', 'failed', 'cancelled']);
+export const reviewJobStatusEnum = pgEnum('review_job_status', [
+  'queued',
+  'leased',
+  'chunking',
+  'analyzing',
+  'summarizing',
+  'processing',
+  'completed',
+  'failed',
+  'cancelled',
+]);
 export const reviewJobTypeEnum = pgEnum('review_job_type', ['pull_request_review', 'comment_followup', 'retriage', 'embedding_refresh']);
 export const reviewCommentSourceEnum = pgEnum('review_comment_source', ['ai', 'human', 'system']);
 export const reviewCommentVisibilityEnum = pgEnum('review_comment_visibility', ['public', 'internal', 'draft']);

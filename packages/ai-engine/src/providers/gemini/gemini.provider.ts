@@ -100,11 +100,11 @@ const toGenerationConfig = (
   request: AIProviderRequest,
 ): GeminiGenerationConfig | undefined => {
   const config: GeminiGenerationConfig = {
-    temperature: request.temperature,
-    topP: request.topP,
-    maxOutputTokens: request.maxOutputTokens,
-    stopSequences: request.stopSequences,
-    responseMimeType: request.responseFormat?.type === 'json_object' ? 'application/json' : undefined,
+    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+    ...(request.topP === undefined ? {} : { topP: request.topP }),
+    ...(request.maxOutputTokens === undefined ? {} : { maxOutputTokens: request.maxOutputTokens }),
+    ...(request.stopSequences === undefined ? {} : { stopSequences: request.stopSequences }),
+    ...(request.responseFormat?.type === 'json_object' ? { responseMimeType: 'application/json' as const } : {}),
   };
 
   if (
@@ -175,10 +175,12 @@ export class GeminiProvider implements AIProvider {
         });
       }
 
+      const systemInstruction = toSystemInstruction(request.messages);
+      const generationConfig = toGenerationConfig(request);
       const payload: GeminiRequestPayload = {
         contents,
-        systemInstruction: toSystemInstruction(request.messages),
-        generationConfig: toGenerationConfig(request),
+        ...(systemInstruction === undefined ? {} : { systemInstruction }),
+        ...(generationConfig === undefined ? {} : { generationConfig }),
       };
 
       const headers = mergeHeaders(
@@ -198,7 +200,7 @@ export class GeminiProvider implements AIProvider {
         headers,
         body: payload,
         timeoutMs: context.timeoutMs ?? this.defaultTimeoutMs,
-        signal: context.signal,
+        ...(context.signal === undefined ? {} : { signal: context.signal }),
       });
 
       const candidate = response.candidates?.[0];

@@ -87,14 +87,16 @@ const extractContent = (choice: OpenAIChoice | undefined): string => {
 };
 
 const buildPayload = (request: AIProviderRequest): OpenAIRequestPayload => {
+  const responseFormat = toOpenAIResponseFormat(request.responseFormat);
+
   return {
     model: request.model,
     messages: request.messages,
-    temperature: request.temperature,
-    max_tokens: request.maxOutputTokens,
-    top_p: request.topP,
-    stop: request.stopSequences,
-    response_format: toOpenAIResponseFormat(request.responseFormat),
+    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+    ...(request.maxOutputTokens === undefined ? {} : { max_tokens: request.maxOutputTokens }),
+    ...(request.topP === undefined ? {} : { top_p: request.topP }),
+    ...(request.stopSequences === undefined ? {} : { stop: request.stopSequences }),
+    ...(responseFormat === undefined ? {} : { response_format: responseFormat }),
   };
 };
 
@@ -103,8 +105,8 @@ export class OpenAIProvider implements AIProvider {
 
   private readonly apiKey: string;
   private readonly baseUrl: string;
-  private readonly organization?: string;
-  private readonly project?: string;
+  private readonly organization: string | undefined;
+  private readonly project: string | undefined;
   private readonly defaultTimeoutMs: number;
 
   public constructor(config: OpenAIProviderConfig) {
@@ -143,7 +145,7 @@ export class OpenAIProvider implements AIProvider {
         headers,
         body: buildPayload(request),
         timeoutMs: context.timeoutMs ?? this.defaultTimeoutMs,
-        signal: context.signal,
+        ...(context.signal === undefined ? {} : { signal: context.signal }),
       });
 
       const firstChoice = response.choices?.[0];

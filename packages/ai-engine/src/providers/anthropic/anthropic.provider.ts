@@ -65,6 +65,23 @@ const toSystemPrompt = (messages: AIProviderRequest['messages']): string | undef
   return filtered.join('\n\n');
 };
 
+const buildPayload = (
+  request: AIProviderRequest,
+  defaultMaxOutputTokens: number,
+): AnthropicRequestPayload => {
+  const system = toSystemPrompt(request.messages);
+
+  return {
+    model: request.model,
+    messages: toAnthropicMessages(request.messages),
+    max_tokens: request.maxOutputTokens ?? defaultMaxOutputTokens,
+    ...(system === undefined ? {} : { system }),
+    ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+    ...(request.topP === undefined ? {} : { top_p: request.topP }),
+    ...(request.stopSequences === undefined ? {} : { stop_sequences: request.stopSequences }),
+  };
+};
+
 const extractContent = (response: AnthropicResponse): string => {
   const blocks = response.content ?? [];
   return blocks
@@ -107,15 +124,7 @@ export class AnthropicProvider implements AIProvider {
         });
       }
 
-      const payload: AnthropicRequestPayload = {
-        model: request.model,
-        system: toSystemPrompt(request.messages),
-        messages: anthropicMessages,
-        temperature: request.temperature,
-        max_tokens: request.maxOutputTokens ?? this.defaultMaxOutputTokens,
-        top_p: request.topP,
-        stop_sequences: request.stopSequences,
-      };
+      const payload = buildPayload(request, this.defaultMaxOutputTokens);
 
       const headers = mergeHeaders(
         {
@@ -135,7 +144,7 @@ export class AnthropicProvider implements AIProvider {
         headers,
         body: payload,
         timeoutMs: context.timeoutMs ?? this.defaultTimeoutMs,
-        signal: context.signal,
+        ...(context.signal === undefined ? {} : { signal: context.signal }),
       });
 
       const usage = response.usage;

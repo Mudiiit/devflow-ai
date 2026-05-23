@@ -5,34 +5,34 @@
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
+      "types": "./src/index.ts",
       "import": "./dist/index.js"
     },
     "./client": {
-      "types": "./dist/client/index.d.ts",
+      "types": "./src/client/index.ts",
       "import": "./dist/client/index.js"
     },
     "./schema": {
-      "types": "./dist/schema/index.d.ts",
+      "types": "./src/schema/index.ts",
       "import": "./dist/schema/index.js"
     },
     "./relations": {
-      "types": "./dist/relations/index.d.ts",
+      "types": "./src/relations/index.ts",
       "import": "./dist/relations/index.js"
     },
     "./repositories": {
-      "types": "./dist/repositories/index.d.ts",
+      "types": "./src/repositories/index.ts",
       "import": "./dist/repositories/index.js"
     },
     "./transactions": {
-      "types": "./dist/transactions/index.d.ts",
+      "types": "./src/transactions/index.ts",
       "import": "./dist/transactions/index.js"
     },
     "./seeds": {
-      "types": "./dist/seeds/index.d.ts",
+      "types": "./src/seeds/index.ts",
       "import": "./dist/seeds/index.js"
     },
     "./package.json": "./package.json"
