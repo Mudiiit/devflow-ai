@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { createDatabaseClient, type DatabaseClient } from '@devflow/database';
-import { AuthSessionsRepository, GithubInstallationsRepository, OauthStatesRepository, RepositoriesRepository, UsersRepository } from '@devflow/database';
+import { AuthSessionsRepository, GithubInstallationsRepository, OauthStatesRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, UsersRepository } from '@devflow/database';
 import { DATABASE_CLIENT } from './database.constants.js';
 
 const repositoryProviders = [
@@ -28,6 +28,16 @@ const repositoryProviders = [
     provide: RepositoriesRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new RepositoriesRepository(db),
+  },
+  {
+    provide: PullRequestsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new PullRequestsRepository(db),
+  },
+  {
+    provide: ReviewJobsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new ReviewJobsRepository(db),
   },
 ];
 

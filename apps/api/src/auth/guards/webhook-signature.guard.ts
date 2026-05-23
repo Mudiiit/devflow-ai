@@ -8,15 +8,20 @@ import { AUTH_WEBHOOK_SIGNATURE_HEADER } from '../auth.constants.js';
 export class WebhookSignatureGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request & { body: Buffer }>();
-    const signature = request.headers[AUTH_WEBHOOK_SIGNATURE_HEADER] as string | undefined;
+    const headerValue = request.headers[AUTH_WEBHOOK_SIGNATURE_HEADER];
+    const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
     if (!signature || !serverEnv.GITHUB_WEBHOOK_SECRET || !Buffer.isBuffer(request.body)) {
       return false;
     }
 
+    const received = signature.startsWith('sha256=') ? signature.slice('sha256='.length) : signature;
     const expected = createHmac('sha256', serverEnv.GITHUB_WEBHOOK_SECRET).update(request.body).digest('hex');
-    const received = signature.replace('sha256=', '');
 
-    return expected.length === received.length && timingSafeEqual(Buffer.from(expected, 'utf8'), Buffer.from(received, 'utf8'));
+    if (!/^[0-9a-f]+$/i.test(received) || received.length !== expected.length) {
+      return false;
+    }
+
+    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(received, 'hex'));
   }
 }

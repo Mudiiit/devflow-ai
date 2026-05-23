@@ -81,3 +81,53 @@ export interface GitHubInstallationPayload {
     full_name: string;
   }>;
 }
+
+export interface GitHubRepositoryIdentity {
+  id: number;
+  name: string;
+  full_name: string;
+  default_branch: string;
+  private: boolean;
+  archived: boolean;
+  fork: boolean;
+  language: string | null;
+  visibility?: 'public' | 'private' | 'internal';
+}
+
+export interface GitHubRepositoryWebhookPayload {
+  action?: string;
+  installation: GitHubInstallationPayload['installation'];
+  repository: GitHubRepositoryIdentity;
+  sender?: {
+    id: number;
+    login: string;
+  };
+}
+
+export interface GitHubPullRequestWebhookPayload {
+  action?: string;
+  installation: GitHubInstallationPayload['installation'];
+  repository: GitHubRepositoryIdentity;
+  pull_request: {
+    id: number;
+    number: number;
+    title: string;
+    body: string | null;
+    state: 'open' | 'closed';
+    draft?: boolean;
+    merged_at: string | null;
+    closed_at: string | null;
+    base: {
+      ref: string;
+      sha: string;
+    };
+    head: {
+      ref: string;
+      sha: string;
+    };
+  };
+  sender?: {
+    id: number;
+    login: string;
+  };
+}
