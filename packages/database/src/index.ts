@@ -4,3 +4,5 @@ export * from './relations/index.js';
 export * from './repositories/index.js';
 export * from './transactions/index.js';
 export * from './seeds/index.js';
+
+export { eq, and, gt, isNull } from 'drizzle-orm';

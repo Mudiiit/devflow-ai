@@ -11,6 +11,7 @@ import {
 } from 'drizzle-orm/pg-core';
 
 export const repositoryProviderEnum = pgEnum('repository_provider', ['github']);
+export const authProviderEnum = pgEnum('auth_provider', ['github']);
 export const githubAccountTypeEnum = pgEnum('github_account_type', ['user', 'organization']);
 export const repositoryVisibilityEnum = pgEnum('repository_visibility', ['public', 'private', 'internal']);
 export const repositorySyncStateEnum = pgEnum('repository_sync_state', ['pending', 'syncing', 'ready', 'error', 'disabled']);

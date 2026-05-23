@@ -1,5 +1,7 @@
 export { BaseRepository } from './base.repository.js';
 export { UsersRepository } from './users.repository.js';
+export { AuthSessionsRepository } from './auth-sessions.repository.js';
+export { OauthStatesRepository } from './oauth-states.repository.js';
 export { GithubInstallationsRepository } from './github-installations.repository.js';
 export { RepositoriesRepository } from './repositories.repository.js';
 export { PullRequestsRepository } from './pull-requests.repository.js';

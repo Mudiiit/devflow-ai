@@ -1,6 +1,12 @@
 export { users } from './users.js';
 export type { User, NewUser } from './users.js';
 
+export { authSessions } from './auth-sessions.js';
+export type { AuthSession, NewAuthSession } from './auth-sessions.js';
+
+export { oauthStates } from './oauth-states.js';
+export type { OauthState, NewOauthState } from './oauth-states.js';
+
 export { githubInstallations } from './github-installations.js';
 export type { GithubInstallation, NewGithubInstallation } from './github-installations.js';
 
@@ -32,8 +38,10 @@ export * from './shared.js';
 
 import { auditLogs } from './audit-logs.js';
 import { aiReviewChunks } from './ai-review-chunks.js';
+import { authSessions } from './auth-sessions.js';
 import { embeddings } from './embeddings.js';
 import { githubInstallations } from './github-installations.js';
+import { oauthStates } from './oauth-states.js';
 import { notifications } from './notifications.js';
 import { pullRequests } from './pull-requests.js';
 import { repositories } from './repositories.js';
@@ -45,6 +53,8 @@ import { users } from './users.js';
 // from one import path in app code, migrations, and repository factories.
 export const databaseSchema = {
   users,
+  authSessions,
+  oauthStates,
   githubInstallations,
   repositories,
   pullRequests,
