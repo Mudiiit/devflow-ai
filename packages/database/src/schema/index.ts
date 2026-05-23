@@ -10,6 +10,18 @@ export type { OauthState, NewOauthState } from './oauth-states.js';
 export { githubInstallations } from './github-installations.js';
 export type { GithubInstallation, NewGithubInstallation } from './github-installations.js';
 
+export { organizations } from './organizations.js';
+export type { Organization, NewOrganization } from './organizations.js';
+
+export { organizationMemberships } from './organization-memberships.js';
+export type { OrganizationMembership, NewOrganizationMembership } from './organization-memberships.js';
+
+export { organizationSettings } from './organization-settings.js';
+export type { OrganizationSettings, NewOrganizationSettings } from './organization-settings.js';
+
+export { repositorySettings } from './repository-settings.js';
+export type { RepositorySettings, NewRepositorySettings } from './repository-settings.js';
+
 export { repositories } from './repositories.js';
 export type { Repository, NewRepository } from './repositories.js';
 
@@ -46,7 +58,11 @@ import { embeddings } from './embeddings.js';
 import { githubInstallations } from './github-installations.js';
 import { oauthStates } from './oauth-states.js';
 import { notifications } from './notifications.js';
+import { organizationMemberships } from './organization-memberships.js';
+import { organizationSettings } from './organization-settings.js';
+import { organizations } from './organizations.js';
 import { pullRequests } from './pull-requests.js';
+import { repositorySettings } from './repository-settings.js';
 import { repositories } from './repositories.js';
 import { reviewComments } from './review-comments.js';
 import { reviewJobs } from './review-jobs.js';
@@ -60,6 +76,10 @@ export const databaseSchema = {
   authSessions,
   oauthStates,
   githubInstallations,
+  organizations,
+  organizationMemberships,
+  organizationSettings,
+  repositorySettings,
   repositories,
   pullRequests,
   reviewJobs,

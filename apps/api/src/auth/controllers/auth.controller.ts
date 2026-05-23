@@ -14,6 +14,7 @@ import { GitHubOAuthStrategy } from '../strategies/github-oauth.strategy.js';
 import { OauthStateService } from '../services/oauth-state.service.js';
 import { SessionService } from '../services/session.service.js';
 import { GitHubOAuthService } from '../services/github-oauth.service.js';
+import { OrganizationService } from '../../organizations/organizations.service.js';
 
 @Controller('auth')
 @UseInterceptors(AuthSessionInterceptor)
@@ -24,6 +25,7 @@ export class AuthController {
     private readonly githubOAuthStrategy: GitHubOAuthStrategy,
     private readonly githubOAuthService: GitHubOAuthService,
     private readonly sessionService: SessionService,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   @Get('github/login')
@@ -48,6 +50,11 @@ export class AuthController {
     const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
     const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
     const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
+    await this.organizationService.ensurePersonalOrganizationForUser({
+      userId: dbUser.id,
+      githubLogin: dbUser.githubLogin,
+      displayName: dbUser.displayName,
+    });
     const session = await this.sessionService.issueSession(
       {
         id: dbUser.id,

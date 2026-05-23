@@ -1,0 +1,57 @@
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
+import { OrganizationService } from './organizations.service.js';
+import { OrganizationMemberGuard } from './guards/organization-member.guard.js';
+import { CurrentOrganization } from './decorators/current-organization.decorator.js';
+
+@Controller('organizations')
+@UseGuards(JwtAuthGuard)
+export class OrganizationsController {
+  constructor(private readonly organizationService: OrganizationService) {}
+
+  @Get()
+  async listOrganizations(@CurrentUser() user: { id: string }) {
+    const organizations = await this.organizationService.listOrganizationsForUser(user.id);
+    return {
+      userId: user.id,
+      organizations,
+    };
+  }
+
+  @Get('default')
+  async getDefaultOrganization(@CurrentUser() user: { id: string }) {
+    const organizations = await this.organizationService.listOrganizationsForUser(user.id);
+    return {
+      organization: organizations[0]?.organization ?? null,
+      membership: organizations[0]?.membership ?? null,
+    };
+  }
+
+  @Get(':organizationId')
+  @UseGuards(OrganizationMemberGuard)
+  async getOrganization(@CurrentOrganization() organization: unknown) {
+    return { organization };
+  }
+
+  @Get(':organizationId/members')
+  @UseGuards(OrganizationMemberGuard)
+  async getOrganizationMembers(@Param('organizationId') organizationId: string) {
+    const members = await this.organizationService.listOrganizationMembers(organizationId);
+    return { organizationId, members };
+  }
+
+  @Post(':organizationId/members')
+  @UseGuards(OrganizationMemberGuard)
+  async addOrganizationMember(
+    @Param('organizationId') organizationId: string,
+    @Body() body: { userId: string; role?: 'owner' | 'admin' | 'reviewer' | 'member' },
+  ) {
+    const membership = await this.organizationService.upsertOrganizationMember(
+      organizationId,
+      body.userId,
+      body.role ?? 'member',
+    );
+    return { organizationId, membership };
+  }
+}

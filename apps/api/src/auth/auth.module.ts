@@ -1,5 +1,6 @@
 import { Module, type NestModule, type MiddlewareConsumer } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
+import { OrganizationsModule } from '../organizations/organizations.module.js';
 import { AuthController } from './controllers/auth.controller.js';
 import { GithubController } from './controllers/github.controller.js';
 import { WebhooksController } from './controllers/webhooks.controller.js';
@@ -21,7 +22,7 @@ import { GitHubOAuthStrategy } from './strategies/github-oauth.strategy.js';
 import { GitHubAppStrategy } from './strategies/github-app.strategy.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, OrganizationsModule],
   controllers: [AuthController, GithubController, WebhooksController],
   providers: [
     JwtService,

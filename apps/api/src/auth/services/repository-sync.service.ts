@@ -7,6 +7,7 @@ import type {
   GitHubRepositoryIdentity,
   GitHubRepositoryWebhookPayload,
 } from '../auth.types.js';
+import { OrganizationService } from '../../organizations/organizations.service.js';
 import type {
   GitHubInstallationStatusDto,
   GitHubInstallationSyncDto,
@@ -24,6 +25,7 @@ export class RepositorySyncService {
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly reviewJobsRepository: ReviewJobsRepository,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   async listInstallationsForUser(userId: string): Promise<GitHubInstallationSummaryDto[]> {
@@ -51,10 +53,16 @@ export class RepositorySyncService {
     }
 
     const githubRepositories = await this.githubAppService.listInstallationRepositories(installationId);
+    const organization = await this.organizationService.ensureOrganizationForGithubAccount({
+      accountLogin: installation.githubAccountLogin,
+      ownerUserId: installation.createdByUserId ?? null,
+    });
     const now = new Date();
 
     for (const repository of githubRepositories) {
-      await this.repositoriesRepository.upsertByGithubRepositoryId(this.mapRepositoryInput(installation, repository, now));
+      await this.repositoriesRepository.upsertByGithubRepositoryId(
+        this.mapRepositoryInput(installation, repository, now, organization.id),
+      );
     }
 
     await this.githubInstallationsRepository.upsertByGithubInstallationId({
@@ -63,6 +71,7 @@ export class RepositorySyncService {
       githubAccountId: installation.githubAccountId ?? undefined,
       githubAccountLogin: installation.githubAccountLogin,
       githubAccountType: installation.githubAccountType,
+      organizationId: organization.id,
       createdByUserId: installation.createdByUserId ?? undefined,
       installationTarget: installation.installationTarget ?? installation.githubAccountType,
       encryptedAccessToken: installation.encryptedAccessToken ?? undefined,
@@ -95,7 +104,14 @@ export class RepositorySyncService {
       throw new Error(`GitHub repository ${githubRepositoryId} is not available on installation ${installationId}`);
     }
 
-    const repositoryRecord = await this.repositoriesRepository.upsertByGithubRepositoryId(this.mapRepositoryInput(installation, repository, new Date()));
+    const organizationId = installation.organizationId
+      ?? (await this.organizationService.ensureOrganizationForGithubAccount({
+        accountLogin: installation.githubAccountLogin,
+        ownerUserId: installation.createdByUserId ?? null,
+      })).id;
+    const repositoryRecord = await this.repositoriesRepository.upsertByGithubRepositoryId(
+      this.mapRepositoryInput(installation, repository, new Date(), organizationId),
+    );
 
     return {
       installation: await this.getInstallationStatus(installationId),
@@ -104,12 +120,17 @@ export class RepositorySyncService {
   }
 
   async applyInstallationWebhook(payload: GitHubInstallationPayload): Promise<GitHubInstallationSyncDto> {
+    const organization = await this.organizationService.ensureOrganizationForGithubAccount({
+      accountLogin: payload.installation.account.login,
+      ownerUserId: null,
+    });
     const installation = await this.githubInstallationsRepository.upsertByGithubInstallationId({
       provider: 'github',
       githubInstallationId: payload.installation.id,
       githubAccountId: payload.installation.account.id,
       githubAccountLogin: payload.installation.account.login,
       githubAccountType: this.normalizeAccountType(payload.installation.account.type),
+      organizationId: organization.id,
       installationTarget: payload.installation.target_type ?? payload.installation.account.type,
       suspendedAt: payload.installation.suspended_at ? new Date(payload.installation.suspended_at) : null,
       metadata: {
@@ -124,7 +145,9 @@ export class RepositorySyncService {
       const now = new Date();
 
       for (const repository of repositoriesFromPayload) {
-        await this.repositoriesRepository.upsertByGithubRepositoryId(this.mapRepositoryInput(installation, repository, now));
+        await this.repositoriesRepository.upsertByGithubRepositoryId(
+          this.mapRepositoryInput(installation, repository, now, organization.id),
+        );
       }
     } else {
       await this.syncInstallation(payload.installation.id);
@@ -146,6 +169,7 @@ export class RepositorySyncService {
       githubAccountId: installation.githubAccountId ?? undefined,
       githubAccountLogin: installation.githubAccountLogin,
       githubAccountType: installation.githubAccountType,
+      organizationId: organization.id,
       createdByUserId: installation.createdByUserId ?? undefined,
       installationTarget: installation.installationTarget ?? installation.githubAccountType,
       encryptedAccessToken: installation.encryptedAccessToken ?? undefined,
@@ -171,8 +195,14 @@ export class RepositorySyncService {
       throw new Error(`GitHub installation ${payload.installation.id} not found`);
     }
 
+    const organizationId = installation.organizationId
+      ?? (await this.organizationService.ensureOrganizationForGithubAccount({
+        accountLogin: installation.githubAccountLogin,
+        ownerUserId: installation.createdByUserId ?? null,
+      })).id;
+
     const repositoryRecord = await this.repositoriesRepository.upsertByGithubRepositoryId(
-      this.mapRepositoryInput(installation, payload.repository, new Date()),
+      this.mapRepositoryInput(installation, payload.repository, new Date(), organizationId),
     );
 
     return {
@@ -300,11 +330,13 @@ export class RepositorySyncService {
     installation: GithubInstallation,
     repository: GitHubRepositoryIdentity,
     lastSyncedAt: Date,
+    organizationId: string | null,
   ): NewRepository {
     return {
       provider: 'github' as const,
       githubRepositoryId: repository.id,
       githubInstallationId: installation.id,
+      organizationId: organizationId ?? undefined,
       ownerLogin: this.extractOwnerLogin(repository.full_name, installation.githubAccountLogin),
       name: repository.name,
       fullName: repository.full_name,

@@ -15,6 +15,9 @@ export const authProviderEnum = pgEnum('auth_provider', ['github']);
 export const githubAccountTypeEnum = pgEnum('github_account_type', ['user', 'organization']);
 export const repositoryVisibilityEnum = pgEnum('repository_visibility', ['public', 'private', 'internal']);
 export const repositorySyncStateEnum = pgEnum('repository_sync_state', ['pending', 'syncing', 'ready', 'error', 'disabled']);
+export const organizationStatusEnum = pgEnum('organization_status', ['active', 'suspended']);
+export const organizationPlanEnum = pgEnum('organization_plan', ['free', 'team', 'enterprise']);
+export const organizationMemberStatusEnum = pgEnum('organization_member_status', ['active', 'invited', 'disabled']);
 export const pullRequestStateEnum = pgEnum('pull_request_state', ['open', 'closed', 'merged', 'draft']);
 export const pullRequestReviewStateEnum = pgEnum('pull_request_review_state', [
   'pending',

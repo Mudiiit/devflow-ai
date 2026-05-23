@@ -1,5 +1,6 @@
 import { bigint, index, pgTable, text, timestamp, uniqueIndex, varchar } from 'drizzle-orm/pg-core';
 import { createForeignIdColumn, createIdColumn, createMetadataColumn, createTimestamps, githubAccountTypeEnum, repositoryProviderEnum } from './shared.js';
+import { organizations } from './organizations.js';
 import { users } from './users.js';
 
 export const githubInstallations = pgTable(
@@ -11,6 +12,7 @@ export const githubInstallations = pgTable(
     githubAccountId: bigint('github_account_id', { mode: 'number' }),
     githubAccountLogin: varchar('github_account_login', { length: 255 }).notNull(),
     githubAccountType: githubAccountTypeEnum('github_account_type').notNull(),
+    organizationId: createForeignIdColumn('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
     createdByUserId: createForeignIdColumn('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     installationTarget: varchar('installation_target', { length: 255 }),
     encryptedAccessToken: text('encrypted_access_token'),

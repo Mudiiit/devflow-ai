@@ -9,6 +9,7 @@ import {
   repositoryVisibilityEnum,
 } from './shared.js';
 import { githubInstallations } from './github-installations.js';
+import { organizations } from './organizations.js';
 import { users } from './users.js';
 
 export const repositories = pgTable(
@@ -18,6 +19,7 @@ export const repositories = pgTable(
     provider: repositoryProviderEnum('provider').notNull().default('github'),
     githubRepositoryId: bigint('github_repository_id', { mode: 'number' }).notNull(),
     githubInstallationId: createForeignIdColumn('github_installation_id').references(() => githubInstallations.id, { onDelete: 'cascade' }).notNull(),
+    organizationId: createForeignIdColumn('organization_id').references(() => organizations.id, { onDelete: 'set null' }),
     ownerUserId: createForeignIdColumn('owner_user_id').references(() => users.id, { onDelete: 'set null' }),
     ownerLogin: varchar('owner_login', { length: 255 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
@@ -36,6 +38,7 @@ export const repositories = pgTable(
     githubRepositoryIdIdx: uniqueIndex('repositories_github_repository_id_unique_idx').on(table.githubRepositoryId),
     fullNameIdx: uniqueIndex('repositories_full_name_unique_idx').on(table.fullName),
     installationIdx: index('repositories_github_installation_id_idx').on(table.githubInstallationId),
+    organizationIdx: index('repositories_organization_id_idx').on(table.organizationId),
     ownerUserIdIdx: index('repositories_owner_user_id_idx').on(table.ownerUserId),
     syncStateIdx: index('repositories_sync_state_idx').on(table.syncState),
   }),

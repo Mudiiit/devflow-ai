@@ -1,6 +1,20 @@
 import { Module } from '@nestjs/common';
 import { createDatabaseClient, type DatabaseClient } from '@devflow/database';
-import { AuthSessionsRepository, GithubInstallationsRepository, OauthStatesRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, UsersRepository } from '@devflow/database';
+import {
+  AuthSessionsRepository,
+  GithubInstallationsRepository,
+  OrganizationMembershipsRepository,
+  OrganizationSettingsRepository,
+  OrganizationsRepository,
+  OauthStatesRepository,
+  PullRequestsRepository,
+  RepositoriesRepository,
+  RepositorySettingsRepository,
+  ReviewCommentsRepository,
+  ReviewJobsRepository,
+  ReviewMetricsRepository,
+  UsersRepository,
+} from '@devflow/database';
 import { DATABASE_CLIENT } from './database.constants.js';
 
 const repositoryProviders = [
@@ -25,9 +39,29 @@ const repositoryProviders = [
     useFactory: (db: DatabaseClient) => new GithubInstallationsRepository(db),
   },
   {
+    provide: OrganizationsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new OrganizationsRepository(db),
+  },
+  {
+    provide: OrganizationMembershipsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new OrganizationMembershipsRepository(db),
+  },
+  {
+    provide: OrganizationSettingsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new OrganizationSettingsRepository(db),
+  },
+  {
     provide: RepositoriesRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new RepositoriesRepository(db),
+  },
+  {
+    provide: RepositorySettingsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new RepositorySettingsRepository(db),
   },
   {
     provide: PullRequestsRepository,
@@ -38,6 +72,16 @@ const repositoryProviders = [
     provide: ReviewJobsRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new ReviewJobsRepository(db),
+  },
+  {
+    provide: ReviewCommentsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new ReviewCommentsRepository(db),
+  },
+  {
+    provide: ReviewMetricsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new ReviewMetricsRepository(db),
   },
 ];
 
