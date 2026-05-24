@@ -53,7 +53,7 @@ export default function RepositoriesPage() {
         <SectionTitle title="Repositories" subtitle="Portfolio health" />
         <div className="mt-4 divide-y divide-[color:var(--app-border)]">
           {repositories.length === 0 ? (
-            <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-8 text-center">
+            <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/20 px-4 py-8 text-center transition hover:bg-[color:var(--app-panel-strong)]/35">
               <div className="text-sm font-semibold text-[color:var(--app-fg)]">No repositories connected</div>
               <div className="mt-2 text-sm text-[color:var(--app-muted)]">
                 Connect your first repo to begin AI review coverage and health tracking.

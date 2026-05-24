@@ -13,12 +13,12 @@ export default function DashboardPage() {
         <StatCard label="Risk Score" value="34" delta="-6" tone="good" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-stretch">
         <Card>
-          <div className="flex flex-col gap-4">
+          <div className="flex h-full flex-col gap-4">
             <SectionTitle title="Risk pulse" subtitle="Last 14 days" />
             <div className="grid gap-4 sm:grid-cols-[1.4fr_1fr]">
-              <div className="glass-panel flex flex-col justify-between gap-4 px-4 py-4 transition hover:translate-y-[-1px] hover:shadow-lg">
+              <div className="glass-panel flex min-h-[220px] flex-col justify-between gap-4 px-4 py-4 transition hover:translate-y-[-1px] hover:shadow-lg">
                 <div className="text-sm text-[color:var(--app-muted)]">Average risk trend</div>
                 <div className="text-3xl font-semibold text-[color:var(--app-fg)]">24</div>
                 <Sparkline points={riskSeries} />
@@ -40,23 +40,25 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <SectionTitle title="Queue status" subtitle="Live workers" />
-          <div className="mt-4 grid gap-3">
+          <div className="flex h-full flex-col">
+            <SectionTitle title="Queue status" subtitle="Live workers" />
+            <div className="mt-4 grid gap-3">
             {[
               { label: "Queued", value: 3 },
               { label: "Analyzing", value: 2 },
               { label: "Summarizing", value: 1 },
             ].map((item) => (
-              <div key={item.label} className="flex items-center justify-between rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
-                <span className="text-sm text-[color:var(--app-muted)]">{item.label}</span>
-                <span className="text-sm font-semibold text-[color:var(--app-fg)]">{item.value}</span>
-              </div>
-            ))}
+                <div key={item.label} className="flex items-center justify-between rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/20">
+                  <span className="text-sm text-[color:var(--app-muted)]">{item.label}</span>
+                  <span className="text-sm font-semibold text-[color:var(--app-fg)]">{item.value}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 lg:items-stretch">
         <Card>
           <SectionTitle title="Top repositories" subtitle="Health score" />
           <div className="mt-4 space-y-3">
