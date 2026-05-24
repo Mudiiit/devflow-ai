@@ -1,0 +1,54 @@
+services:
+  api:
+    build:
+      target: base
+    command: sh -c "pnpm install --frozen-lockfile && pnpm --filter api start:dev"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      HOST: 0.0.0.0
+      DATABASE_URL: ${DATABASE_URL:-postgresql://devflow:devflow_password@postgres:5432/devflow}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-development}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change-me-in-development}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+    volumes:
+      - .:/app
+      - api_node_modules:/app/node_modules
+
+  worker:
+    build:
+      target: base
+    command: sh -c "pnpm install --frozen-lockfile && pnpm --filter worker start:dev"
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL:-postgresql://devflow:devflow_password@postgres:5432/devflow}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_WEBHOOK_SECRET: ${GITHUB_WEBHOOK_SECRET:-}
+    volumes:
+      - .:/app
+      - worker_node_modules:/app/node_modules
+
+  web:
+    build:
+      target: base
+    command: sh -c "pnpm install --frozen-lockfile && pnpm --filter web dev"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+
+volumes:
+  api_node_modules:
+  worker_node_modules:
+  web_node_modules:

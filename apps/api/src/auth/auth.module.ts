@@ -15,6 +15,7 @@ import { SessionService } from './services/session.service.js';
 import { OauthStateService } from './services/oauth-state.service.js';
 import { GitHubOAuthService } from './services/github-oauth.service.js';
 import { GitHubAppService } from './services/github-app.service.js';
+import { ReviewQueueService } from './services/review-queue.service.js';
 import { RepositorySyncService } from './services/repository-sync.service.js';
 import { GitHubWebhookService } from './services/github-webhook.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
@@ -30,6 +31,7 @@ import { GitHubAppStrategy } from './strategies/github-app.strategy.js';
     OauthStateService,
     GitHubOAuthService,
     GitHubAppService,
+    ReviewQueueService,
     RepositorySyncService,
     GitHubWebhookService,
     JwtStrategy,
@@ -42,6 +44,6 @@ import { GitHubAppStrategy } from './strategies/github-app.strategy.js';
     WebhookSignatureGuard,
     AuthSessionInterceptor,
   ],
-  exports: [JwtService, SessionService, GitHubOAuthService, GitHubAppService, RepositorySyncService, GitHubWebhookService],
+  exports: [JwtService, SessionService, GitHubOAuthService, GitHubAppService, ReviewQueueService, RepositorySyncService, GitHubWebhookService],
 })
 export class AuthModule {}

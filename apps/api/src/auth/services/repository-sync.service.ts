@@ -3,6 +3,7 @@ import { GithubInstallationsRepository, PullRequestsRepository, RepositoriesRepo
 import { RequestContextService } from '@devflow/logger';
 import { createTraceCarrier } from '@devflow/tracing';
 import { GitHubAppService } from './github-app.service.js';
+import { ReviewQueueService } from './review-queue.service.js';
 import type {
   GitHubInstallationPayload,
   GitHubPullRequestWebhookPayload,
@@ -30,6 +31,7 @@ export class RepositorySyncService {
     private readonly usageRecordsRepository: UsageRecordsRepository,
     private readonly organizationService: OrganizationService,
     private readonly requestContextService: RequestContextService,
+    private readonly reviewQueueService: ReviewQueueService,
   ) {}
 
   async listInstallationsForUser(userId: string): Promise<GitHubInstallationSummaryDto[]> {
@@ -296,6 +298,13 @@ export class RepositorySyncService {
         installationId: payload.installation.id,
         repositoryFullName: payload.repository.full_name,
       },
+    });
+
+    await this.reviewQueueService.enqueueReviewJob(reviewJob.id, {
+      requestId: typeof reviewJob.input?.requestId === 'string' ? reviewJob.input.requestId : undefined,
+      traceContext: typeof reviewJob.input?.traceContext === 'object' && reviewJob.input.traceContext !== null
+        ? reviewJob.input.traceContext as Record<string, string>
+        : undefined,
     });
 
     await this.usageRecordsRepository.recordUsage({

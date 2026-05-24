@@ -7,5 +7,14 @@ export { sharedEnvSchema, nodeEnvSchema } from './schemas/shared.schema.js';
 export type { SharedEnv } from './schemas/shared.schema.js';
 export { serverEnvSchema } from './schemas/server.schema.js';
 export { clientEnvSchema } from './schemas/client.schema.js';
+export {
+	reviewJobQueueName,
+	reviewJobQueueJobName,
+	reviewJobDeadLetterQueueName,
+	reviewJobQueueDefaults,
+	type ReviewQueueJobData,
+	createRedisConnection,
+	isRedisConnectionEnabled,
+} from './queue.js';
 export { parseEnv } from './utils/parse-env.js';
 export { validateEnv, EnvValidationError } from './utils/validate-env.js';

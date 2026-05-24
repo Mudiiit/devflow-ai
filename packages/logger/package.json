@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@devflow/database": "workspace:*",
+    "@devflow/config": "workspace:*",
     "@devflow/tracing": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "@nestjs/common": "^11.0.1",

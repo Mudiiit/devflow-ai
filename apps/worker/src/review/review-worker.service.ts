@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { ReviewJobsRepository, type ReviewJob } from '@devflow/database';
+import { reviewJobQueueJobName } from '@devflow/config';
 import {
   AuditLogService,
   MetricsService,
@@ -9,6 +10,7 @@ import {
 } from '@devflow/logger';
 import { SpanKind } from '@opentelemetry/api';
 import { extractTraceContext, getCurrentTraceSnapshot, runWithSpan } from '@devflow/tracing';
+import { ReviewQueueService } from './review-queue.service.js';
 import { ReviewPipelineService } from './review-pipeline.service.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
@@ -34,6 +36,7 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
   public constructor(
     private readonly reviewJobsRepository: ReviewJobsRepository,
     private readonly reviewPipelineService: ReviewPipelineService,
+    private readonly reviewQueueService: ReviewQueueService,
     private readonly auditLogService: AuditLogService,
     private readonly metricsService: MetricsService,
     private readonly requestContextService: RequestContextService,
@@ -85,20 +88,7 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
         },
         async () => {
         try {
-          const availableSlots = this.maxConcurrency - this.activeJobs.size;
-          this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
-
-          if (availableSlots <= 0) {
-            this.logger.event('debug', 'worker.poll.skipped', {
-              reason: 'concurrency_exhausted',
-              activeJobs: this.activeJobs.size,
-              maxConcurrency: this.maxConcurrency,
-            });
-            await this.schedulePoll(this.pollIntervalMs);
-            return;
-          }
-
-          const queuedJobs = await this.reviewJobsRepository.findQueued(availableSlots);
+          const queuedJobs = await this.reviewJobsRepository.findQueued(this.maxConcurrency);
           this.metricsService.observe('devflow_worker_poll_duration_ms', Date.now() - pollStartedAt, { service: 'worker' });
 
           if (queuedJobs.length === 0) {
@@ -110,30 +100,56 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
             return;
           }
 
-          this.logger.event('info', 'worker.poll.dispatched', {
+          if (!this.reviewQueueService.isEnabled()) {
+            this.logger.event('info', 'worker.poll.dispatched', {
+              queuedJobs: queuedJobs.length,
+              activeJobs: this.activeJobs.size,
+              maxConcurrency: this.maxConcurrency,
+              transport: 'direct',
+            });
+
+            for (const job of queuedJobs) {
+              if (this.activeJobs.size >= this.maxConcurrency) {
+                break;
+              }
+
+              this.activeJobs.add(job.id);
+              this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
+              void this.processQueuedJob(job)
+                .catch((error: unknown) => {
+                  this.logger.event('error', 'worker.job.unhandled_error', {
+                    jobId: job.id,
+                    error: error instanceof Error ? error.message : 'Unknown worker error',
+                  }, error instanceof Error ? error : undefined);
+                })
+                .finally(() => {
+                  this.activeJobs.delete(job.id);
+                  this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
+                });
+            }
+
+            await this.schedulePoll(0);
+            return;
+          }
+
+          this.logger.event('info', 'worker.poll.reconciled', {
             queuedJobs: queuedJobs.length,
             activeJobs: this.activeJobs.size,
             maxConcurrency: this.maxConcurrency,
+            transport: reviewJobQueueJobName,
           });
 
           for (const job of queuedJobs) {
-            if (this.activeJobs.size >= this.maxConcurrency) {
-              break;
-            }
+            const jobInput = job.input !== null && typeof job.input === 'object' ? job.input as Record<string, unknown> : undefined;
+            const requestId = jobInput !== undefined && typeof jobInput.requestId === 'string' ? jobInput.requestId : undefined;
+            const traceContext = jobInput !== undefined && typeof jobInput.traceContext === 'object' && jobInput.traceContext !== null
+              ? jobInput.traceContext as Record<string, string>
+              : undefined;
 
-            this.activeJobs.add(job.id);
-            this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
-            void this.processQueuedJob(job)
-              .catch((error: unknown) => {
-                this.logger.event('error', 'worker.job.unhandled_error', {
-                  jobId: job.id,
-                  error: error instanceof Error ? error.message : 'Unknown worker error',
-                }, error instanceof Error ? error : undefined);
-              })
-              .finally(() => {
-                this.activeJobs.delete(job.id);
-                this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
-              });
+            await this.reviewQueueService.enqueueReviewJob(job.id, {
+              requestId,
+              traceContext,
+            });
           }
 
           await this.schedulePoll(0);
@@ -149,7 +165,7 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
     });
   }
 
-  private async processQueuedJob(reviewJob: ReviewJob): Promise<void> {
+  public async processQueuedJob(reviewJob: ReviewJob): Promise<void> {
     const startedAt = Date.now();
     const input = reviewJob.input;
     const reviewJobInput = input !== null && typeof input === 'object' ? input as Record<string, unknown> : {};
@@ -183,15 +199,15 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
         },
         async () => {
           this.logger.event('info', 'worker.job.started', { jobId: reviewJob.id });
-        await this.auditLogService.recordHttpRequest({
-          action: 'review',
-          entityType: 'review_job',
-          entityId: reviewJob.id,
-          reviewJobId: reviewJob.id,
-          metadata: {
-            event: 'started',
-          },
-        });
+          await this.auditLogService.recordHttpRequest({
+            action: 'review',
+            entityType: 'review_job',
+            entityId: reviewJob.id,
+            reviewJobId: reviewJob.id,
+            metadata: {
+              event: 'started',
+            },
+          });
 
         try {
           await this.reviewPipelineService.processReviewJob(reviewJob.id);
