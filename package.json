@@ -28,7 +28,7 @@
     "db:push": "turbo run db:push",
     "db:seed": "turbo run db:seed",
     "migrate:prod": "pnpm --filter @devflow/database migrate:prod",
-    "prepare": "husky"
+    "prepare": "husky || true"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
