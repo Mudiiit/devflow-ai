@@ -18,6 +18,22 @@ const avgRisk = Math.round(
 export default function RepositoriesPage() {
   return (
     <div className="flex flex-col gap-6">
+      <Card>
+        <SectionTitle title="Repository onboarding" subtitle="How to get value fast" />
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {[
+            { title: "Connect a repository", body: "Start with the highest-risk service to establish baseline review coverage." },
+            { title: "Tune strictness", body: "Adjust policy per team to reduce noise while preserving security coverage." },
+            { title: "Watch trends", body: "Use health and risk deltas to spot regressions before merge." },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4 transition hover:bg-[color:var(--app-panel-strong)]/25">
+              <div className="text-sm font-semibold text-[color:var(--app-fg)]">{item.title}</div>
+              <div className="mt-2 text-sm text-[color:var(--app-muted)]">{item.body}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-3">
         <div className="glass-panel px-4 py-4">
           <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Portfolio health</div>
@@ -36,11 +52,19 @@ export default function RepositoriesPage() {
       <Card>
         <SectionTitle title="Repositories" subtitle="Portfolio health" />
         <div className="mt-4 divide-y divide-[color:var(--app-border)]">
+          {repositories.length === 0 ? (
+            <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-8 text-center">
+              <div className="text-sm font-semibold text-[color:var(--app-fg)]">No repositories connected</div>
+              <div className="mt-2 text-sm text-[color:var(--app-muted)]">
+                Connect your first repo to begin AI review coverage and health tracking.
+              </div>
+            </div>
+          ) : null}
           {repositories.map((repo) => (
             <Link
               key={repo.id}
               href={`/repositories/${repo.id}`}
-              className="flex flex-col gap-4 py-4 transition hover:bg-[color:var(--app-panel-strong)]/20 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-4 rounded-2xl py-4 transition hover:bg-[color:var(--app-panel-strong)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="w-full max-w-lg">
                 <div className="text-sm font-semibold text-[color:var(--app-fg)]">{repo.name}</div>
