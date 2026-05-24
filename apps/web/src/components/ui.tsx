@@ -1,12 +1,12 @@
 import React from "react";
 
 export function Card({ children }: { children: React.ReactNode }) {
-  return <div className="glass-panel px-5 py-5">{children}</div>;
+  return <div className="glass-panel px-4 py-4 sm:px-5 sm:py-5">{children}</div>;
 }
 
 export function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="flex items-end justify-between gap-4">
+    <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
       <div>
         <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
           {subtitle ?? ""}

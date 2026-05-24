@@ -20,7 +20,32 @@ export default function AnalyticsPage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <Card>
+        <SectionTitle title="Executive summary" subtitle="Recruiter walkthrough" />
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          {[
+            {
+              title: "What improved",
+              body: "Reviews are faster, risk is falling, and owners are responding sooner.",
+            },
+            {
+              title: "What to point at",
+              body: "Lead with SLA, MTTR, and alert quality so the story reads in seconds.",
+            },
+            {
+              title: "Why it matters",
+              body: "Teams get confidence, auditability, and a cleaner operational narrative.",
+            },
+          ].map((item) => (
+            <div key={item.title} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4 transition hover:bg-[color:var(--app-panel-strong)]/25">
+              <div className="text-sm font-semibold text-[color:var(--app-fg)]">{item.title}</div>
+              <div className="mt-1 text-sm text-[color:var(--app-muted)]">{item.body}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div className="glass-panel px-4 py-4">
           <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Review SLA</div>
           <div className="mt-2 text-2xl font-semibold text-[color:var(--app-fg)]">96.4%</div>
@@ -53,7 +78,7 @@ export default function AnalyticsPage() {
           </div>
           <div className="glass-panel px-4 py-4">
             <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Severity mix</div>
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4 flex flex-wrap gap-3">
               <Badge label="Critical 14%" tone="bad" />
               <Badge label="Warning 36%" tone="warn" />
               <Badge label="Info 50%" tone="good" />
