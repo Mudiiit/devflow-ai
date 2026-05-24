@@ -16,6 +16,7 @@ import {
 import {
   AiReviewChunksRepository,
   GithubInstallationsRepository,
+  NotificationsRepository,
   PullRequestsRepository,
   RepositoriesRepository,
   ReviewCommentsRepository,
@@ -308,6 +309,7 @@ export class ReviewPipelineService {
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly reviewMetricsRepository: ReviewMetricsRepository,
+    private readonly notificationsRepository: NotificationsRepository,
   ) {}
 
   async processReviewJob(reviewJobId: string): Promise<ReviewOrchestrationResult> {
@@ -421,6 +423,9 @@ export class ReviewPipelineService {
         reviewJobId: reviewJob.id,
         pullRequestId: reviewJob.pullRequestId,
         repositoryId: reviewJob.repositoryId,
+        recipientUserId: reviewJob.requestedByUserId ?? repository.ownerUserId,
+        repositoryFullName: repository.fullName,
+        pullRequestNumber: pullRequest.number,
         findings: executionResult.findings,
         summaryBody,
         publication,
@@ -459,6 +464,14 @@ export class ReviewPipelineService {
         errorMessage: message,
         retryCount: reviewJob.retryCount + 1,
         leaseToken,
+      });
+
+      await this.persistFailureNotification({
+        recipientUserId: reviewJob.requestedByUserId ?? repository.ownerUserId,
+        repositoryFullName: repository.fullName,
+        pullRequestNumber: pullRequest.number,
+        reviewJobId: reviewJob.id,
+        message,
       });
 
       throw error;
@@ -597,6 +610,9 @@ export class ReviewPipelineService {
     readonly reviewJobId: string;
     readonly pullRequestId: string;
     readonly repositoryId: string;
+    readonly recipientUserId: string | null;
+    readonly repositoryFullName: string;
+    readonly pullRequestNumber: number;
     readonly findings: ReadonlyArray<ReviewFinding>;
     readonly summaryBody: string;
     readonly publication: PublishedReviewResult;
@@ -684,6 +700,83 @@ export class ReviewPipelineService {
         },
       });
     }
+
+    await this.persistSuccessNotification({
+      recipientUserId: input.recipientUserId,
+      repositoryFullName: input.repositoryFullName,
+      pullRequestNumber: input.pullRequestNumber,
+      reviewJobId: input.reviewJobId,
+      findingsCount: input.executionResult.findings.length,
+      overallSeverity: input.executionResult.overallSeverity,
+      riskScore: input.executionResult.riskScore,
+      confidenceScore: input.executionResult.confidenceScore,
+    });
+  }
+
+  private async persistSuccessNotification(input: {
+    readonly recipientUserId: string | null;
+    readonly repositoryFullName: string;
+    readonly pullRequestNumber: number;
+    readonly reviewJobId: string;
+    readonly findingsCount: number;
+    readonly overallSeverity: ReviewSeverity;
+    readonly riskScore: number;
+    readonly confidenceScore: number;
+  }): Promise<void> {
+    if (!input.recipientUserId) {
+      return;
+    }
+
+    await this.notificationsRepository.createNotification({
+      userId: input.recipientUserId,
+      type: 'review_completed',
+      deliveryChannel: 'in_app',
+      title: `Review completed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
+      body: `DevFlow AI completed the review with ${input.findingsCount} findings and ${input.overallSeverity} severity.`,
+      actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
+      payload: {
+        reviewJobId: input.reviewJobId,
+        repositoryFullName: input.repositoryFullName,
+        pullRequestNumber: input.pullRequestNumber,
+        findingsCount: input.findingsCount,
+        overallSeverity: input.overallSeverity,
+        riskScore: input.riskScore,
+        confidenceScore: input.confidenceScore,
+      },
+      metadata: {
+        source: 'review_pipeline',
+      },
+    });
+  }
+
+  private async persistFailureNotification(input: {
+    readonly recipientUserId: string | null;
+    readonly repositoryFullName: string;
+    readonly pullRequestNumber: number;
+    readonly reviewJobId: string;
+    readonly message: string;
+  }): Promise<void> {
+    if (!input.recipientUserId) {
+      return;
+    }
+
+    await this.notificationsRepository.createNotification({
+      userId: input.recipientUserId,
+      type: 'review_failed',
+      deliveryChannel: 'in_app',
+      title: `Review failed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
+      body: input.message,
+      actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
+      payload: {
+        reviewJobId: input.reviewJobId,
+        repositoryFullName: input.repositoryFullName,
+        pullRequestNumber: input.pullRequestNumber,
+        errorMessage: input.message,
+      },
+      metadata: {
+        source: 'review_pipeline',
+      },
+    });
   }
 
   private parseJobInput(reviewJob: ReviewJob): ReviewJobInputPayload {

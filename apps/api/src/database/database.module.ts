@@ -8,6 +8,7 @@ import {
   OrganizationSettingsRepository,
   OrganizationsRepository,
   OauthStatesRepository,
+  NotificationsRepository,
   PullRequestsRepository,
   RepositoriesRepository,
   RepositorySettingsRepository,
@@ -73,6 +74,11 @@ const repositoryProviders = [
     provide: PullRequestsRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new PullRequestsRepository(db),
+  },
+  {
+    provide: NotificationsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new NotificationsRepository(db),
   },
   {
     provide: ReviewJobsRepository,
