@@ -294,7 +294,7 @@ export default function NotificationsInboxPage() {
                 void markAllAsRead();
               }}
               disabled={!hasUnread || isMarkingAll}
-              className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isMarkingAll ? "Marking..." : "Mark all read"}
             </button>
@@ -337,9 +337,9 @@ export default function NotificationsInboxPage() {
             {inbox.notifications.map((notification) => (
               <div
                 key={notification.id}
-                className="rounded-2xl border border-(--app-border) px-4 py-3"
+                className="rounded-2xl border border-(--app-border) px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/30"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="text-sm font-semibold text-foreground">
@@ -353,11 +353,11 @@ export default function NotificationsInboxPage() {
                       {formatTimestamp(notification.createdAt)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {notification.actionUrl ? (
                       <a
                         href={notification.actionUrl}
-                        className="rounded-full border border-(--app-border) px-3 py-2 text-xs font-semibold text-foreground"
+                        className="rounded-full border border-(--app-border) px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
                       >
                         Open
                       </a>
@@ -368,7 +368,7 @@ export default function NotificationsInboxPage() {
                       onClick={() => {
                         void markAsRead(notification.id);
                       }}
-                      className="rounded-full bg-(--app-accent) px-3 py-2 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full bg-(--app-accent) px-3 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Mark read
                     </button>

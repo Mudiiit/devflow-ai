@@ -150,7 +150,7 @@ export default async function BillingSettingsPage() {
               {overview.usage.resources.map((resource) => {
                 const width = Math.min(100, Math.round((resource.quantity / Math.max(resource.hardLimit, 1)) * 100));
                 return (
-                  <div key={resource.resource} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4">
+                  <div key={resource.resource} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4 transition hover:bg-[color:var(--app-panel-strong)]/25">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-[color:var(--app-fg)]">{resource.resource.replaceAll("_", " ")}</div>
@@ -172,15 +172,15 @@ export default async function BillingSettingsPage() {
           <Card>
             <SectionTitle title="Workspace summary" subtitle="Seats and billing contact" />
             <div className="mt-4 grid gap-3">
-              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/25">
                 <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Billing contact</div>
                 <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">{overview.customer.name ?? overview.customer.email ?? "Unassigned"}</div>
               </div>
-              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/25">
                 <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Active users</div>
                 <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">{formatNumber(overview.usage.liveCounts.activeUsers)}</div>
               </div>
-              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/25">
                 <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Renewal</div>
                 <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">{formatDate(overview.subscription.currentPeriodEnd)}</div>
               </div>
@@ -196,7 +196,7 @@ export default async function BillingSettingsPage() {
                 </div>
               ) : null}
               {overview.invoices.map((invoice) => (
-                <div key={invoice.id} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+                <div key={invoice.id} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/25">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-semibold text-[color:var(--app-fg)]">{invoice.invoiceNumber}</div>
@@ -223,7 +223,7 @@ export default async function BillingSettingsPage() {
               <div
                 key={plan.id}
                 className={[
-                  "rounded-3xl border px-5 py-5",
+                  "rounded-3xl border px-5 py-5 transition hover:-translate-y-0.5 hover:shadow-lg",
                   plan.code === overview.subscription.planCode
                     ? "border-[color:var(--app-accent)] bg-[linear-gradient(180deg,var(--app-panel),var(--app-panel-strong))]"
                     : "border-[color:var(--app-border)] bg-[color:var(--app-panel)]",

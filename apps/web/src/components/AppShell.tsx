@@ -130,7 +130,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen w-full px-6 py-6 sm:px-10">
       <div className="app-shell-gradient grid min-h-[90vh] grid-cols-1 gap-6 px-4 py-5 sm:grid-cols-[260px_1fr] sm:gap-8 sm:px-8">
-        <aside className="flex flex-col gap-6">
+        <aside className="flex flex-col gap-6 sm:sticky sm:top-6 sm:self-start">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
@@ -145,7 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
 
-          <nav className="flex flex-col gap-2">
+          <nav className="flex flex-wrap gap-2 sm:flex-col" aria-label="Primary navigation">
             {navItems.map((item) => {
               const active =
                 pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
@@ -154,7 +154,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={classNames(
-                    "rounded-2xl px-4 py-3 text-sm font-medium transition",
+                    "rounded-2xl px-4 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]",
                     active
                       ? "bg-[color:var(--app-accent)] text-white shadow-lg"
                       : "text-[color:var(--app-muted)] hover:bg-[color:var(--app-panel-strong)]",
@@ -190,7 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="font-semibold text-[color:var(--app-fg)]">Acme Labs</span>
               <span className="text-xs text-[color:var(--app-muted)]">Owner</span>
             </div>
-            <button className="mt-3 w-full rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] hover:border-[color:var(--app-accent)]">
+            <button className="mt-3 w-full rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:border-[color:var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]">
               Switch workspace
             </button>
           </div>
@@ -216,16 +216,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   event.stopPropagation();
                   setCommandOpen(true);
                 }}
-                className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)]"
+                className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
                 aria-label="Open command palette"
               >
                 Command
                 <span className="ml-2 text-[10px] text-[color:var(--app-muted)]">Ctrl/Cmd+K</span>
               </button>
-              <button className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)]">
+              <button className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]">
                 Export
               </button>
-              <button className="rounded-full bg-[color:var(--app-accent)] px-4 py-2 text-xs font-semibold text-white">
+              <button className="rounded-full bg-[color:var(--app-accent)] px-4 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]">
                 New review
               </button>
               <div className="flex items-center gap-3 rounded-full border border-[color:var(--app-border)] px-3 py-2">
@@ -235,7 +235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </header>
 
-          <main className="flex-1 animate-rise">{children}</main>
+          <main id="main-content" className="flex-1 animate-rise">{children}</main>
         </div>
       </div>
 
