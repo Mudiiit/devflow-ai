@@ -4,6 +4,7 @@ FROM node:22.15.0-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
+RUN apk add --no-cache curl
 WORKDIR /app
 
 FROM base AS pruner
@@ -28,4 +29,6 @@ WORKDIR /app
 RUN addgroup -S nodejs && adduser -S worker -G nodejs
 COPY --from=builder /app ./
 USER worker
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+	CMD curl -f http://localhost:3000/health/ready || exit 1
 CMD ["node", "apps/worker/dist/main.js"]

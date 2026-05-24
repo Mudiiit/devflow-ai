@@ -23,8 +23,11 @@
     "clean": "turbo run clean && pnpm exec rimraf .turbo node_modules **/dist **/.next **/coverage",
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
+    "verify:deployment": "node infra/scripts/verify-deployment.js",
+    "validate:env": "node infra/scripts/validate-env.js",
     "db:push": "turbo run db:push",
     "db:seed": "turbo run db:seed",
+    "migrate:prod": "pnpm --filter @devflow/database migrate:prod",
     "prepare": "husky"
   },
   "devDependencies": {

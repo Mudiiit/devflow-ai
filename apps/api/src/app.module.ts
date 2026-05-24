@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationShutdown } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ObservabilityModule } from '@devflow/logger';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -11,6 +12,7 @@ import { SettingsModule } from './settings/settings.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { SecurityModule } from './security/security.module.js';
+import { TransformInterceptor } from './common/transform.interceptor.js';
 
 @Module({
   imports: [
@@ -28,6 +30,26 @@ import { SecurityModule } from './security/security.module.js';
     BillingModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Close rate-limit redis connection exposed by middleware on shutdown
+    {
+      provide: 'RATE_LIMIT_REDIS_LIFECYCLE',
+      useClass: class RateLimitRedisLifecycle implements OnApplicationShutdown {
+        async onApplicationShutdown(): Promise<void> {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const redis = (global as any).__devflow_api_rate_limit_redis as any | undefined;
+            if (redis && typeof redis.quit === 'function') {
+              await redis.quit();
+            }
+          } catch (err) {
+            // ignore shutdown errors
+          }
+        }
+      },
+    },
+    { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+  ],
 })
 export class AppModule {}

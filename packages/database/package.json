@@ -47,7 +47,8 @@
     "db:generate": "drizzle-kit generate --config drizzle.config.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
     "db:push": "drizzle-kit push --config drizzle.config.ts",
-    "db:seed": "pnpm build && node dist/seeds/index.js"
+    "db:seed": "pnpm build && node dist/seeds/index.js",
+    "migrate:prod": "pnpm build && node dist/scripts/runMigrations.js"
   },
   "dependencies": {
     "@devflow/config": "workspace:*",

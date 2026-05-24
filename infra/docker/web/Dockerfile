@@ -29,9 +29,12 @@ ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 WORKDIR /app
 RUN addgroup -S nodejs && adduser -S nextjs -G nodejs
+RUN apk add --no-cache curl
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./.next/static
 COPY --from=builder /app/apps/web/public ./public
 USER nextjs
 EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+	CMD curl -f http://localhost:3000/health/ready || exit 1
 CMD ["node", "server.js"]

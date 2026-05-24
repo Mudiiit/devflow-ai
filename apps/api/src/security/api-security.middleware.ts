@@ -91,6 +91,16 @@ export const createRateLimitMiddleware = (): ((request: Request, response: Respo
     ? createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-rate-limit')
     : null;
 
+  // expose redis instance for process-module shutdown hooks to close connection
+  try {
+    if (redis) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (global as any).__devflow_api_rate_limit_redis = redis;
+    }
+  } catch (e) {
+    // ignore
+  }
+
   return (request: Request, response: Response, next: NextFunction): void => {
     const path = request.originalUrl ?? request.url;
 

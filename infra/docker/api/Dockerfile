@@ -4,6 +4,7 @@ FROM node:22.15.0-alpine AS base
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
 RUN corepack enable
+RUN apk add --no-cache curl
 WORKDIR /app
 
 FROM base AS pruner
@@ -31,4 +32,6 @@ RUN addgroup -S nodejs && adduser -S nestjs -G nodejs
 COPY --from=builder /app ./
 USER nestjs
 EXPOSE 4000
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 \
+	CMD curl -f http://localhost:4000/health/ready || exit 1
 CMD ["node", "apps/api/dist/main.js"]

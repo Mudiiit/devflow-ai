@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, OnApplicationShutdown } from '@nestjs/common';
 import {
   AiReviewChunksRepository,
   AuditLogsRepository,
@@ -91,6 +91,20 @@ const repositoryProviders = [
     {
       provide: DATABASE_CLIENT,
       useFactory: () => createDatabaseClient(),
+    },
+    {
+      provide: 'DATABASE_LIFECYCLE',
+      useClass: class DatabaseLifecycle implements OnApplicationShutdown {
+        async onApplicationShutdown(): Promise<void> {
+          try {
+            // import lazily to avoid circular imports at module resolution time
+            const { closeDatabaseConnection } = await Promise.resolve(require('@devflow/database'));
+            await closeDatabaseConnection();
+          } catch (err) {
+            // ignore errors during shutdown
+          }
+        }
+      },
     },
     ...repositoryProviders,
   ],

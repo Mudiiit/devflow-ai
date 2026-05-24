@@ -45,12 +45,15 @@ export class DashboardController {
       maxPageSize: 100,
     });
 
-    return this.dashboardService.getReviewHistory(organization.id, {
+    const result = await this.dashboardService.getReviewHistory(organization.id, {
       page: pagination.page,
       pageSize: pagination.pageSize,
       offset: pagination.offset,
       status,
     });
+
+    const { formatPaginatedResponse } = await import('../common/query/response.js');
+    return formatPaginatedResponse(result.reviews, result.pagination);
   }
 
   @Get('jobs')
