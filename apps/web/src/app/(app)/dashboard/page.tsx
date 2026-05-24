@@ -18,7 +18,7 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4">
             <SectionTitle title="Risk pulse" subtitle="Last 14 days" />
             <div className="grid gap-4 sm:grid-cols-[1.4fr_1fr]">
-              <div className="glass-panel flex flex-col justify-between gap-4 px-4 py-4">
+              <div className="glass-panel flex flex-col justify-between gap-4 px-4 py-4 transition hover:translate-y-[-1px] hover:shadow-lg">
                 <div className="text-sm text-[color:var(--app-muted)]">Average risk trend</div>
                 <div className="text-3xl font-semibold text-[color:var(--app-fg)]">24</div>
                 <Sparkline points={riskSeries} />
@@ -86,7 +86,7 @@ export default function DashboardPage() {
               { title: "Repository synced", meta: "acme/mobile" },
               { title: "Review queued", meta: "acme/ops-tooling #58" },
             ].map((event) => (
-              <div key={event.title} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+              <div key={event.title} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/20">
                 <div className="text-sm font-semibold text-[color:var(--app-fg)]">{event.title}</div>
                 <div className="text-xs text-[color:var(--app-muted)]">{event.meta}</div>
               </div>

@@ -185,7 +185,7 @@ export default function JobMonitorPage() {
   );
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6" aria-busy={isLoading || isRefreshing} aria-live="polite">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Queued"
@@ -225,7 +225,7 @@ export default function JobMonitorPage() {
                   onClick={() => {
                     void loadJobs();
                   }}
-                  className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)]"
+                  className="rounded-full border border-[color:var(--app-border)] px-4 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
                 >
                   Refresh now
                 </button>
@@ -239,8 +239,14 @@ export default function JobMonitorPage() {
             ) : null}
 
             {isLoading ? (
-              <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-10 text-center text-sm text-[color:var(--app-muted)]">
-                Loading job monitor...
+              <div className="grid gap-3 md:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={index} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4">
+                    <div className="h-4 w-1/2 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                    <div className="mt-3 h-3 w-3/4 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                    <div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                  </div>
+                ))}
               </div>
             ) : null}
 
@@ -255,12 +261,12 @@ export default function JobMonitorPage() {
                 <table className="min-w-full border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-left text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
-                      <th className="px-4 py-2">Job</th>
-                      <th className="px-4 py-2">State</th>
-                      <th className="px-4 py-2">Duration</th>
-                      <th className="px-4 py-2">Timestamps</th>
-                      <th className="px-4 py-2">Retries</th>
-                      <th className="px-4 py-2">Result</th>
+                      <th scope="col" className="px-4 py-2">Job</th>
+                      <th scope="col" className="px-4 py-2">State</th>
+                      <th scope="col" className="px-4 py-2">Duration</th>
+                      <th scope="col" className="px-4 py-2">Timestamps</th>
+                      <th scope="col" className="px-4 py-2">Retries</th>
+                      <th scope="col" className="px-4 py-2">Result</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -268,10 +274,10 @@ export default function JobMonitorPage() {
                       const state = getJobState(job.status);
                       const durationMs = resolveDuration(job);
                       return (
-                        <tr key={job.id} className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/40">
+                        <tr key={job.id} className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/40 transition hover:bg-[color:var(--app-panel-strong)]/70">
                           <td className="rounded-l-2xl px-4 py-4 align-top">
                             <div className="flex flex-col gap-1">
-                              <Link href={`/reviews/${job.id}`} className="text-sm font-semibold text-[color:var(--app-fg)] hover:underline">
+                              <Link href={`/reviews/${job.id}`} className="text-sm font-semibold text-[color:var(--app-fg)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]">
                                 {job.repositoryName} #{job.pullRequestNumber}
                               </Link>
                               <div className="text-xs text-[color:var(--app-muted)]">{job.pullRequestTitle}</div>
@@ -347,11 +353,11 @@ export default function JobMonitorPage() {
             ))}
           </div>
 
-          <div className="mt-5 rounded-2xl border border-[color:var(--app-border)] px-4 py-4 text-sm text-[color:var(--app-muted)]">
+          <div className="mt-5 rounded-2xl border border-[color:var(--app-border)] px-4 py-4 text-sm text-[color:var(--app-muted)] transition hover:bg-[color:var(--app-panel-strong)]/20">
             Live data is refreshed with polling every 10 seconds. Use the refresh button for an immediate update.
           </div>
 
-          <div className="mt-4 rounded-2xl bg-[color:var(--app-panel-strong)] px-4 py-4 text-sm text-[color:var(--app-fg)]">
+          <div className="mt-4 rounded-2xl bg-[color:var(--app-panel-strong)] px-4 py-4 text-sm text-[color:var(--app-fg)] transition hover:translate-y-[-1px]">
             <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
               Last refresh
             </div>

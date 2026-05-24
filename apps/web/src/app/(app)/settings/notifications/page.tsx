@@ -11,7 +11,7 @@ export default function NotificationSettingsPage() {
           { label: "Integration errors", value: "Email" },
           { label: "Weekly digest", value: "Enabled" },
         ].map((item) => (
-          <div key={item.label} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+          <div key={item.label} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/25">
             <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">{item.label}</div>
             <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">{item.value}</div>
           </div>
