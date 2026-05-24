@@ -79,3 +79,26 @@ export function Sparkline({ points }: { points: number[] }) {
     </svg>
   );
 }
+
+export function SkeletonBlock({ className = "" }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`animate-pulse rounded-xl bg-[color:var(--app-panel-strong)]/70 ${className}`}
+    />
+  );
+}
+
+export function SkeletonText({ lines = 3 }: { lines?: number }) {
+  return (
+    <div className="space-y-2" aria-hidden="true">
+      {Array.from({ length: lines }).map((_, index) => (
+        <SkeletonBlock
+          // Keep varied widths so the placeholder reads as content.
+          key={index}
+          className={`h-3 ${index === lines - 1 ? "w-2/3" : "w-full"}`}
+        />
+      ))}
+    </div>
+  );
+}

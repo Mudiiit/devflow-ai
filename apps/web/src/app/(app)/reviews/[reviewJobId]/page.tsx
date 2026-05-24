@@ -18,13 +18,22 @@ export default function ReviewDetailPage() {
           <Badge label="Completed" />
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <button className="rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold">
+          <button
+            type="button"
+            className="rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+          >
             Retry review
           </button>
-          <button className="rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold">
+          <button
+            type="button"
+            className="rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+          >
             Export report
           </button>
-          <button className="rounded-xl bg-[color:var(--app-accent)] px-3 py-2 text-xs font-semibold text-white">
+          <button
+            type="button"
+            className="rounded-xl bg-[color:var(--app-accent)] px-3 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+          >
             Open GitHub review
           </button>
         </div>
@@ -46,6 +55,18 @@ export default function ReviewDetailPage() {
                 <Badge label={`${finding.severity} · ${finding.confidence}%`} tone={finding.severity === "critical" ? "bad" : "warn"} />
               </div>
               <div className="text-xs text-[color:var(--app-muted)]">{finding.file}</div>
+              <div className="mt-2">
+                <div className="mb-1 flex items-center justify-between text-[11px] text-[color:var(--app-muted)]">
+                  <span>AI confidence</span>
+                  <span>{finding.confidence}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-[color:var(--app-panel-strong)]">
+                  <div
+                    className={`h-full rounded-full ${finding.severity === "critical" ? "bg-[color:var(--app-danger)]" : "bg-[color:var(--app-accent)]"}`}
+                    style={{ width: `${finding.confidence}%` }}
+                  />
+                </div>
+              </div>
               <div className="mt-2 rounded-xl bg-[color:var(--app-panel-strong)] px-3 py-2 text-xs text-[color:var(--app-muted)]">
                 Diff viewer hook: open in DevFlow diff viewer
               </div>

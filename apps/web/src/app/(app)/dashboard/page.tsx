@@ -66,7 +66,7 @@ export default function DashboardPage() {
               { name: "acme/mobile", score: 84, risk: 32 },
               { name: "acme/ops-tooling", score: 79, risk: 41 },
             ].map((repo) => (
-              <div key={repo.name} className="flex items-center justify-between rounded-2xl border border-[color:var(--app-border)] px-4 py-3">
+              <div key={repo.name} className="flex flex-col gap-3 rounded-2xl border border-[color:var(--app-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <div className="text-sm font-semibold text-[color:var(--app-fg)]">{repo.name}</div>
                   <div className="text-xs text-[color:var(--app-muted)]">Risk score {repo.risk}</div>
