@@ -64,11 +64,14 @@ export default function RepositoriesPage() {
             <Link
               key={repo.id}
               href={`/repositories/${repo.id}`}
-              className="flex flex-col gap-4 rounded-2xl py-4 transition hover:bg-[color:var(--app-panel-strong)]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:flex-row sm:items-center sm:justify-between"
+              aria-label={`Open repository ${repo.name}`}
+              className="flex flex-col gap-4 rounded-2xl py-4 transition hover:-translate-y-px hover:bg-[color:var(--app-panel-strong)]/20 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="w-full max-w-lg">
                 <div className="text-sm font-semibold text-[color:var(--app-fg)]">{repo.name}</div>
-                <div className="text-xs text-[color:var(--app-muted)]">{repo.language} · {repo.prs} active PRs</div>
+                <div className="text-xs text-[color:var(--app-muted)]">
+                  {repo.language} · {repo.prs} active PRs
+                </div>
                 <div className="mt-2 grid gap-2 text-[11px] text-[color:var(--app-muted)]">
                   <div>
                     <div className="mb-1 flex items-center justify-between">
