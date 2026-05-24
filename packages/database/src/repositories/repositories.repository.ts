@@ -26,6 +26,13 @@ export class RepositoriesRepository extends BaseRepository<typeof repositories> 
       .where(eq(repositories.githubInstallationId, githubInstallationId));
   }
 
+  async findManyByOrganizationId(organizationId: string) {
+    return this.db
+      .select()
+      .from(repositories)
+      .where(eq(repositories.organizationId, organizationId));
+  }
+
   async upsertByGithubRepositoryId(input: NewRepository) {
     const rows = await this.db
       .insert(repositories)

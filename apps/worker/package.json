@@ -20,6 +20,7 @@
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
+    "@devflow/billing": "workspace:*",
     "@devflow/ai-engine": "workspace:*",
     "@devflow/config": "workspace:*",
     "@devflow/database": "workspace:*",

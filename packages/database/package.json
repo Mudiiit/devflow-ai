@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@devflow/config": "workspace:*",
+    "@devflow/billing": "workspace:*",
     "@devflow/tracing": "workspace:*",
     "@opentelemetry/api": "^1.9.1",
     "drizzle-orm": "^0.39.1",

@@ -49,6 +49,33 @@ export type { Notification, NewNotification } from './notifications.js';
 export { auditLogs } from './audit-logs.js';
 export type { AuditLog, NewAuditLog } from './audit-logs.js';
 
+export {
+  billingCustomers,
+  billingProviderEnum,
+  billingCadenceEnum,
+  billingSubscriptionStatusEnum,
+  billingInvoiceStatusEnum,
+  billingUsageResourceEnum,
+  billingUsageUnitEnum,
+  billingUsageSourceEnum,
+  pricingPlans,
+  subscriptions,
+  invoices,
+  usageRecords,
+} from './billing.js';
+export type {
+  BillingCustomer,
+  NewBillingCustomer,
+  PricingPlan,
+  NewPricingPlan,
+  Subscription,
+  NewSubscription,
+  Invoice,
+  NewInvoice,
+  UsageRecord,
+  NewUsageRecord,
+} from './billing.js';
+
 export * from './shared.js';
 
 import { auditLogs } from './audit-logs.js';
@@ -61,6 +88,7 @@ import { notifications } from './notifications.js';
 import { organizationMemberships } from './organization-memberships.js';
 import { organizationSettings } from './organization-settings.js';
 import { organizations } from './organizations.js';
+import { billingCustomers, invoices, pricingPlans, subscriptions, usageRecords } from './billing.js';
 import { pullRequests } from './pull-requests.js';
 import { repositorySettings } from './repository-settings.js';
 import { repositories } from './repositories.js';
@@ -88,6 +116,11 @@ export const databaseSchema = {
   reviewMetrics,
   embeddings,
   notifications,
+  billingCustomers,
+  pricingPlans,
+  subscriptions,
+  invoices,
+  usageRecords,
   auditLogs,
 } as const;
 

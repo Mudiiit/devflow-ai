@@ -9,6 +9,7 @@ import { OrganizationsModule } from './organizations/organizations.module.js';
 import { DashboardModule } from './dashboard/dashboard.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { BillingModule } from './billing/billing.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     DashboardModule,
     SettingsModule,
     NotificationsModule,
+    BillingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

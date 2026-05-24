@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { GithubInstallationsRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, type GithubInstallation, type NewRepository, type Repository, type ReviewJob } from '@devflow/database';
+import { GithubInstallationsRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, UsageRecordsRepository, type GithubInstallation, type NewRepository, type Repository, type ReviewJob } from '@devflow/database';
 import { RequestContextService } from '@devflow/logger';
 import { createTraceCarrier } from '@devflow/tracing';
 import { GitHubAppService } from './github-app.service.js';
@@ -27,6 +27,7 @@ export class RepositorySyncService {
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly reviewJobsRepository: ReviewJobsRepository,
+    private readonly usageRecordsRepository: UsageRecordsRepository,
     private readonly organizationService: OrganizationService,
     private readonly requestContextService: RequestContextService,
   ) {}
@@ -229,6 +230,14 @@ export class RepositorySyncService {
       throw new Error(`GitHub repository ${payload.repository.id} not found for installation ${payload.installation.id}`);
     }
 
+    const organization = repository.organizationId
+      ? await this.organizationService.getOrganizationById(repository.organizationId)
+      : null;
+
+    if (!organization) {
+      throw new Error(`Organization for repository ${repository.id} was not found`);
+    }
+
     const pullRequest = await this.pullRequestsRepository.upsertByGithubPullRequestId({
       repositoryId: repository.id,
       githubPullRequestId: payload.pull_request.id,
@@ -286,6 +295,25 @@ export class RepositorySyncService {
       metadata: {
         installationId: payload.installation.id,
         repositoryFullName: payload.repository.full_name,
+      },
+    });
+
+    await this.usageRecordsRepository.recordUsage({
+      organizationId: organization.id,
+      subscriptionId: null,
+      pricingPlanId: null,
+      resource: 'ai_review_request',
+      quantity: 1,
+      unit: 'count',
+      source: 'webhook',
+      relatedEntityType: 'review_job',
+      relatedEntityId: reviewJob.id,
+      periodStart: null,
+      periodEnd: null,
+      metadata: {
+        installationId: payload.installation.id,
+        repositoryId: repository.id,
+        pullRequestId: pullRequest.id,
       },
     });
 

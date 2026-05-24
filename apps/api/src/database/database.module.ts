@@ -2,19 +2,24 @@ import { Module } from '@nestjs/common';
 import { createDatabaseClient, type DatabaseClient } from '@devflow/database';
 import {
   AuditLogsRepository,
+  BillingCustomersRepository,
   AuthSessionsRepository,
   GithubInstallationsRepository,
   OrganizationMembershipsRepository,
   OrganizationSettingsRepository,
   OrganizationsRepository,
   OauthStatesRepository,
+  PricingPlansRepository,
   NotificationsRepository,
   PullRequestsRepository,
   RepositoriesRepository,
   RepositorySettingsRepository,
+  SubscriptionsRepository,
   ReviewCommentsRepository,
   ReviewJobsRepository,
   ReviewMetricsRepository,
+  InvoicesRepository,
+  UsageRecordsRepository,
   UsersRepository,
 } from '@devflow/database';
 import { DATABASE_CLIENT } from './database.constants.js';
@@ -24,6 +29,11 @@ const repositoryProviders = [
     provide: AuditLogsRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new AuditLogsRepository(db),
+  },
+  {
+    provide: BillingCustomersRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new BillingCustomersRepository(db),
   },
   {
     provide: UsersRepository,
@@ -79,6 +89,26 @@ const repositoryProviders = [
     provide: NotificationsRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new NotificationsRepository(db),
+  },
+  {
+    provide: PricingPlansRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new PricingPlansRepository(db),
+  },
+  {
+    provide: SubscriptionsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new SubscriptionsRepository(db),
+  },
+  {
+    provide: InvoicesRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new InvoicesRepository(db),
+  },
+  {
+    provide: UsageRecordsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new UsageRecordsRepository(db),
   },
   {
     provide: ReviewJobsRepository,

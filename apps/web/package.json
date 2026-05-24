@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@devflow/billing": "workspace:*",
     "@devflow/config": "workspace:*",
     "next": "16.2.6",
     "react": "19.2.4",

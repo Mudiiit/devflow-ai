@@ -3,6 +3,7 @@ import {
   AiReviewChunksRepository,
   AuditLogsRepository,
   AuthSessionsRepository,
+  OrganizationsRepository,
   createDatabaseClient,
   GithubInstallationsRepository,
   OauthStatesRepository,
@@ -11,6 +12,7 @@ import {
   ReviewCommentsRepository,
   ReviewJobsRepository,
   ReviewMetricsRepository,
+  UsageRecordsRepository,
   UsersRepository,
   type DatabaseClient,
 } from '@devflow/database';
@@ -43,6 +45,11 @@ const repositoryProviders = [
     useFactory: (db: DatabaseClient) => new GithubInstallationsRepository(db),
   },
   {
+    provide: OrganizationsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new OrganizationsRepository(db),
+  },
+  {
     provide: RepositoriesRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new RepositoriesRepository(db),
@@ -71,6 +78,11 @@ const repositoryProviders = [
     provide: ReviewMetricsRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new ReviewMetricsRepository(db),
+  },
+  {
+    provide: UsageRecordsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new UsageRecordsRepository(db),
   },
 ];
 

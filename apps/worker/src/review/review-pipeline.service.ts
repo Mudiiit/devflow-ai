@@ -17,14 +17,17 @@ import {
 import {
   AiReviewChunksRepository,
   GithubInstallationsRepository,
+  OrganizationsRepository,
   NotificationsRepository,
   PullRequestsRepository,
   RepositoriesRepository,
   ReviewCommentsRepository,
   ReviewJobsRepository,
   ReviewMetricsRepository,
+  UsageRecordsRepository,
   type ReviewJob,
 } from '@devflow/database';
+import { buildQuotaSnapshot, defaultBillingPlans, isHardLimitReached, isSoftLimitReached, type BillingUsageEntry } from '@devflow/billing';
 import {
   GitHubAppClient,
   GitHubReviewClient,
@@ -306,12 +309,14 @@ export class ReviewPipelineService {
   constructor(
     private readonly reviewJobsRepository: ReviewJobsRepository,
     private readonly githubInstallationsRepository: GithubInstallationsRepository,
+    private readonly organizationsRepository: OrganizationsRepository,
     private readonly aiReviewChunksRepository: AiReviewChunksRepository,
     private readonly reviewCommentsRepository: ReviewCommentsRepository,
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly repositoriesRepository: RepositoriesRepository,
     private readonly reviewMetricsRepository: ReviewMetricsRepository,
     private readonly notificationsRepository: NotificationsRepository,
+    private readonly usageRecordsRepository: UsageRecordsRepository,
   ) {}
 
   async processReviewJob(reviewJobId: string): Promise<ReviewOrchestrationResult> {
@@ -340,6 +345,14 @@ export class ReviewPipelineService {
     if (!repository) {
       throw new Error(`Repository ${reviewJob.repositoryId} was not found`);
     }
+
+    const organizationId = repository.organizationId;
+    const organization = organizationId ? await this.organizationsRepository.findById(organizationId) : null;
+    if (!organization) {
+      throw new Error(`Organization for repository ${repository.id} was not found`);
+    }
+
+    await this.assertReviewQuota(organization.id, organization.plan);
 
     const installation = await this.githubInstallationsRepository.findById(repository.githubInstallationId);
     if (!installation) {
@@ -463,6 +476,45 @@ export class ReviewPipelineService {
         throw new Error(`Failed to persist completion state for review job ${reviewJob.id}`);
       }
 
+      const usageEntries: Array<{ resource: 'tokens_consumed' | 'prs_reviewed' | 'storage_usage_bytes'; quantity: number; unit: 'tokens' | 'count' | 'bytes' }> = [
+        { resource: 'tokens_consumed', quantity: executionResult.totalTokens, unit: 'tokens' },
+        { resource: 'prs_reviewed', quantity: 1, unit: 'count' },
+        {
+          resource: 'storage_usage_bytes',
+          quantity: Buffer.byteLength(JSON.stringify({
+            summary: summaryBody,
+            findings: executionResult.findings,
+            reviewState,
+            executionResult,
+            publication,
+          }), 'utf8'),
+          unit: 'bytes',
+        },
+      ];
+
+      await Promise.all(
+        usageEntries.map((entry) => this.usageRecordsRepository.recordUsage({
+          organizationId: organization.id,
+          billingCustomerId: null,
+          subscriptionId: null,
+          pricingPlanId: null,
+          resource: entry.resource,
+          quantity: entry.quantity,
+          unit: entry.unit,
+          source: 'worker',
+          relatedEntityType: 'review_job',
+          relatedEntityId: reviewJob.id,
+          periodStart: null,
+          periodEnd: null,
+          metadata: {
+            pullRequestId: reviewJob.pullRequestId,
+            repositoryId: reviewJob.repositoryId,
+            selectedProvider: executionResult.selectedProvider,
+            selectedModel: executionResult.selectedModel,
+          },
+        })),
+      );
+
       return executionResult;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown review pipeline failure';
@@ -485,6 +537,25 @@ export class ReviewPipelineService {
       throw error;
     }
     });
+  }
+
+  private async assertReviewQuota(organizationId: string, planCode: string): Promise<void> {
+    const plan = defaultBillingPlans.find((entry) => entry.code === planCode) ?? defaultBillingPlans[0]!;
+    const usageRows = await this.usageRecordsRepository.listUsageByOrganization(organizationId);
+    const usage: BillingUsageEntry[] = usageRows.map((row) => ({
+      resource: row.resource as BillingUsageEntry['resource'],
+      quantity: Number(row.quantity ?? 0),
+    }));
+    const quotaSnapshot = buildQuotaSnapshot(plan, usage);
+
+    if (isHardLimitReached(quotaSnapshot)) {
+      throw new Error(`Billing quota reached for plan ${plan.code}. Upgrade to continue processing reviews.`);
+    }
+
+    if (isSoftLimitReached(quotaSnapshot)) {
+      // Soft limit warning is intentionally non-fatal; the caller still gets a chance to complete.
+      return;
+    }
   }
 
   private async executeWithFallback(input: {

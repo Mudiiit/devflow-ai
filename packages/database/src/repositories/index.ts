@@ -17,3 +17,8 @@ export type { ReviewJobMonitoringSnapshot } from './review-jobs.repository.js';
 export { EmbeddingsRepository } from './embeddings.repository.js';
 export { NotificationsRepository } from './notifications.repository.js';
 export { AuditLogsRepository } from './audit-logs.repository.js';
+export { BillingCustomersRepository } from './billing-customers.repository.js';
+export { PricingPlansRepository } from './pricing-plans.repository.js';
+export { SubscriptionsRepository } from './subscriptions.repository.js';
+export { InvoicesRepository } from './invoices.repository.js';
+export { UsageRecordsRepository } from './usage-records.repository.js';
