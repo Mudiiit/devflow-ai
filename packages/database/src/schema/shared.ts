@@ -52,8 +52,8 @@ export const notificationTypeEnum = pgEnum('notification_type', [
   'repository_synced',
 ]);
 export const notificationDeliveryChannelEnum = pgEnum('notification_delivery_channel', ['in_app', 'email', 'slack']);
-export const auditActionEnum = pgEnum('audit_action', ['create', 'update', 'delete', 'sync', 'review', 'analysis', 'notify']);
-export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'reviewer', 'member']);
+export const auditActionEnum = pgEnum('audit_action', ['create', 'update', 'delete', 'sync', 'review', 'analysis', 'notify', 'security', 'api_key', 'secret', 'auth']);
+export const userRoleEnum = pgEnum('user_role', ['owner', 'admin', 'maintainer', 'reviewer', 'member']);
 export const userStatusEnum = pgEnum('user_status', ['invited', 'active', 'disabled']);
 
 export function createIdColumn(name = 'id') {

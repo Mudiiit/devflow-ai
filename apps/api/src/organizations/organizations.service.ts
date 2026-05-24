@@ -6,6 +6,7 @@ import {
   UsersRepository,
   type Organization,
   type OrganizationMembership,
+  type User,
 } from '@devflow/database';
 
 const slugify = (value: string): string => {
@@ -137,7 +138,7 @@ export class OrganizationService {
     }));
   }
 
-  async upsertOrganizationMember(organizationId: string, userId: string, role: 'owner' | 'admin' | 'reviewer' | 'member') {
+  async upsertOrganizationMember(organizationId: string, userId: string, role: User['role']) {
     return this.organizationMembershipsRepository.upsertMembership({
       organizationId,
       userId,

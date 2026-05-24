@@ -42,3 +42,8 @@ The production compose stack exposes:
 - `/health/live` reports liveness.
 - `/health/ready` checks Postgres and Redis readiness.
 - `/metrics` exposes the in-memory observability snapshot, including queue metrics in the worker.
+
+## Operational runbooks
+
+- [docs/backup-recovery.md](./backup-recovery.md) documents backup cadence and recovery drills.
+- [docs/incident-response.md](./incident-response.md) documents severity handling, communication, and postmortem standards.

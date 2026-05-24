@@ -1,4 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
+import type { AppRole } from '../rbac.types.js';
 
 export const ROLES_KEY = 'auth:roles';
-export const Roles = (...roles: Array<'owner' | 'admin' | 'reviewer' | 'member'>) => SetMetadata(ROLES_KEY, roles);
+export const Roles = (...roles: AppRole[]) => SetMetadata(ROLES_KEY, roles);

@@ -4,7 +4,13 @@ import { serverEnv } from '@devflow/config';
 import { StructuredLoggerService } from '@devflow/logger';
 import { initializeTracing } from '@devflow/tracing';
 import { AppModule } from './app.module';
-import { createRateLimitMiddleware, securityHeadersMiddleware } from './security/api-security.middleware.js';
+import {
+  antiAbuseMiddleware,
+  createRateLimitMiddleware,
+  requestIdMiddleware,
+  securityHeadersMiddleware,
+} from './security/api-security.middleware.js';
+import { createIdempotencyMiddleware } from './security/idempotency.middleware.js';
 
 async function bootstrap() {
   await initializeTracing({
@@ -20,8 +26,11 @@ async function bootstrap() {
     credentials: true,
   });
   app.use('/webhooks/github', raw({ type: '*/*' }));
+  app.use(requestIdMiddleware);
   app.use(securityHeadersMiddleware);
+  app.use(antiAbuseMiddleware);
   app.use(createRateLimitMiddleware());
+  app.use(createIdempotencyMiddleware());
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

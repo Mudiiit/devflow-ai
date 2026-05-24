@@ -10,10 +10,12 @@ import {
   reviewJobs,
   reviewMetrics,
   sql,
+  usageRecords,
   type DatabaseClient,
 } from '@devflow/database';
 import { ReviewJobsRepository, type ReviewJobMonitoringSnapshot } from '@devflow/database';
 import { DATABASE_CLIENT } from '../database/database.constants.js';
+import { CacheService } from '../security/services/cache.service.js';
 
 const toDateKey = (value: Date): string => value.toISOString().slice(0, 10);
 
@@ -22,9 +24,22 @@ export class DashboardService {
   constructor(
     @Inject(DATABASE_CLIENT) private readonly db: DatabaseClient,
     private readonly reviewJobsRepository: ReviewJobsRepository,
+    private readonly cacheService: CacheService,
   ) {}
 
   async getOverview(organizationId: string, window = '14d') {
+    const cacheKey = `dashboard:overview:${organizationId}:${window}`;
+    const cached = await this.cacheService.getJson<Awaited<ReturnType<DashboardService['buildOverview']>>>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
+    const result = await this.buildOverview(organizationId, window);
+    await this.cacheService.setJson(cacheKey, result, 30);
+    return result;
+  }
+
+  private async buildOverview(organizationId: string, window = '14d') {
     const windowDays = window === '30d' ? 30 : 14;
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
@@ -176,7 +191,10 @@ export class DashboardService {
     return { pullRequests: rows };
   }
 
-  async getReviewHistory(organizationId: string) {
+  async getReviewHistory(
+    organizationId: string,
+    options: { page: number; pageSize: number; offset: number; status?: string | undefined },
+  ) {
     const rows = await this.db
       .select({
         id: reviewJobs.id,
@@ -191,11 +209,35 @@ export class DashboardService {
       .from(reviewJobs)
       .innerJoin(repositories, eq(reviewJobs.repositoryId, repositories.id))
       .leftJoin(reviewMetrics, eq(reviewMetrics.reviewJobId, reviewJobs.id))
-      .where(eq(repositories.organizationId, organizationId))
+      .where(
+        and(
+          eq(repositories.organizationId, organizationId),
+          options.status ? eq(reviewJobs.status, options.status as any) : sql`true`,
+        ),
+      )
       .orderBy(desc(reviewJobs.createdAt))
-      .limit(100);
+      .limit(options.pageSize)
+      .offset(options.offset);
 
-    return { reviews: rows };
+    const [countRow] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(reviewJobs)
+      .innerJoin(repositories, eq(reviewJobs.repositoryId, repositories.id))
+      .where(
+        and(
+          eq(repositories.organizationId, organizationId),
+          options.status ? eq(reviewJobs.status, options.status as any) : sql`true`,
+        ),
+      );
+
+    return {
+      reviews: rows,
+      pagination: {
+        page: options.page,
+        pageSize: options.pageSize,
+        total: countRow?.count ?? 0,
+      },
+    };
   }
 
   async getJobMonitoring(organizationId: string, limit = 25): Promise<ReviewJobMonitoringSnapshot> {
@@ -357,5 +399,52 @@ export class DashboardService {
     `);
 
     return { organizationId, reviewStrictness: strictness };
+  }
+
+  async getAdminAnalytics(organizationId: string) {
+    const providerPerformance = await this.db
+      .select({
+        provider: reviewMetrics.provider,
+        count: sql<number>`count(*)`,
+        avgExecutionMs: sql<number>`coalesce(avg(${reviewMetrics.executionMs}), 0)`,
+        avgRiskScore: sql<number>`coalesce(avg(${reviewMetrics.riskScore}), 0)`,
+      })
+      .from(reviewMetrics)
+      .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+      .where(eq(repositories.organizationId, organizationId))
+      .groupBy(reviewMetrics.provider);
+
+    const failoverRows = await this.db
+      .select({
+        fallbackProvider: sql<string>`coalesce(${reviewJobs.metadata}->>'fallbackProvider', 'none')`,
+        count: sql<number>`count(*)`,
+      })
+      .from(reviewJobs)
+      .innerJoin(repositories, eq(reviewJobs.repositoryId, repositories.id))
+      .where(eq(repositories.organizationId, organizationId))
+      .groupBy(sql`coalesce(${reviewJobs.metadata}->>'fallbackProvider', 'none')`);
+
+    const usageRows = await this.db
+      .select({
+        resource: usageRecords.resource,
+        quantity: sql<number>`coalesce(sum(${usageRecords.quantity}), 0)`,
+      })
+      .from(usageRecords)
+      .where(eq(usageRecords.organizationId, organizationId))
+      .groupBy(usageRecords.resource);
+
+    const costRows = await this.db
+      .select({
+        totalCostCents: sql<number>`coalesce(sum((${usageRecords.metadata}->>'costCents')::int), 0)`,
+      })
+      .from(usageRecords)
+      .where(eq(usageRecords.organizationId, organizationId));
+
+    return {
+      providerPerformance,
+      providerFailover: failoverRows,
+      usage: usageRows,
+      estimatedCostCents: costRows[0]?.totalCostCents ?? 0,
+    };
   }
 }

@@ -49,6 +49,18 @@ export type { Notification, NewNotification } from './notifications.js';
 export { auditLogs } from './audit-logs.js';
 export type { AuditLog, NewAuditLog } from './audit-logs.js';
 
+export { apiKeys } from './api-keys.js';
+export type { ApiKey, NewApiKey } from './api-keys.js';
+
+export { encryptedSecrets } from './encrypted-secrets.js';
+export type { EncryptedSecret, NewEncryptedSecret } from './encrypted-secrets.js';
+
+export { featureFlags } from './feature-flags.js';
+export type { FeatureFlag, NewFeatureFlag } from './feature-flags.js';
+
+export { idempotencyKeys } from './idempotency-keys.js';
+export type { IdempotencyKey, NewIdempotencyKey } from './idempotency-keys.js';
+
 export {
   billingCustomers,
   billingProviderEnum,
@@ -79,10 +91,14 @@ export type {
 export * from './shared.js';
 
 import { auditLogs } from './audit-logs.js';
+import { apiKeys } from './api-keys.js';
 import { aiReviewChunks } from './ai-review-chunks.js';
 import { authSessions } from './auth-sessions.js';
+import { encryptedSecrets } from './encrypted-secrets.js';
 import { embeddings } from './embeddings.js';
+import { featureFlags } from './feature-flags.js';
 import { githubInstallations } from './github-installations.js';
+import { idempotencyKeys } from './idempotency-keys.js';
 import { oauthStates } from './oauth-states.js';
 import { notifications } from './notifications.js';
 import { organizationMemberships } from './organization-memberships.js';
@@ -116,6 +132,10 @@ export const databaseSchema = {
   reviewMetrics,
   embeddings,
   notifications,
+  apiKeys,
+  encryptedSecrets,
+  featureFlags,
+  idempotencyKeys,
   billingCustomers,
   pricingPlans,
   subscriptions,

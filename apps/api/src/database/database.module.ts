@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { createDatabaseClient, type DatabaseClient } from '@devflow/database';
 import {
+  ApiKeysRepository,
   AuditLogsRepository,
   BillingCustomersRepository,
   AuthSessionsRepository,
+  EncryptedSecretsRepository,
+  FeatureFlagsRepository,
   GithubInstallationsRepository,
+  IdempotencyKeysRepository,
   OrganizationMembershipsRepository,
   OrganizationSettingsRepository,
   OrganizationsRepository,
@@ -34,6 +38,26 @@ const repositoryProviders = [
     provide: BillingCustomersRepository,
     inject: [DATABASE_CLIENT],
     useFactory: (db: DatabaseClient) => new BillingCustomersRepository(db),
+  },
+  {
+    provide: ApiKeysRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new ApiKeysRepository(db),
+  },
+  {
+    provide: EncryptedSecretsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new EncryptedSecretsRepository(db),
+  },
+  {
+    provide: FeatureFlagsRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new FeatureFlagsRepository(db),
+  },
+  {
+    provide: IdempotencyKeysRepository,
+    inject: [DATABASE_CLIENT],
+    useFactory: (db: DatabaseClient) => new IdempotencyKeysRepository(db),
   },
   {
     provide: UsersRepository,

@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Request } from 'express';
 import { serverEnv } from '@devflow/config';
 import { AUTH_WEBHOOK_SIGNATURE_HEADER } from '../auth.constants.js';
+import { verifyHmacSha256Signature } from '../utils/webhook-verification.js';
 
 @Injectable()
 export class WebhookSignatureGuard implements CanActivate {
@@ -15,13 +15,6 @@ export class WebhookSignatureGuard implements CanActivate {
       return false;
     }
 
-    const received = signature.startsWith('sha256=') ? signature.slice('sha256='.length) : signature;
-    const expected = createHmac('sha256', serverEnv.GITHUB_WEBHOOK_SECRET).update(request.body).digest('hex');
-
-    if (!/^[0-9a-f]+$/i.test(received) || received.length !== expected.length) {
-      return false;
-    }
-
-    return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(received, 'hex'));
+    return verifyHmacSha256Signature(request.body, signature, serverEnv.GITHUB_WEBHOOK_SECRET);
   }
 }

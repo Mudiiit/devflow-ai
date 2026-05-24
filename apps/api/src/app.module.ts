@@ -10,6 +10,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
 import { BillingModule } from './billing/billing.module.js';
+import { SecurityModule } from './security/security.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { BillingModule } from './billing/billing.module.js';
     }),
     AuthModule,
     OrganizationsModule,
+    SecurityModule,
     DashboardModule,
     SettingsModule,
     NotificationsModule,

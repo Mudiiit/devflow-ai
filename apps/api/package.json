@@ -16,6 +16,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
+    "test:integration": "jest --config ./test/jest-integration.json",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
@@ -23,6 +24,7 @@
     "@devflow/billing": "workspace:*",
     "@devflow/config": "workspace:*",
     "@devflow/database": "workspace:*",
+    "@devflow/feature-flags": "workspace:*",
     "@devflow/logger": "workspace:*",
     "@devflow/tracing": "workspace:*",
     "bullmq": "^5.49.2",
