@@ -136,6 +136,7 @@ export default function NotificationsInboxPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isMarkingAll, setIsMarkingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isStreamConnected, setIsStreamConnected] = useState(false);
 
   const hydrateInbox = useCallback(async () => {
     const data = await fetchApi<InboxResponse>("/notifications");
@@ -183,12 +184,14 @@ export default function NotificationsInboxPage() {
     }
 
     eventSource.onerror = () => {
+      setIsStreamConnected(false);
       if (!cancelled) {
         setError((previous) => previous ?? "Realtime connection interrupted. Trying to recover...");
       }
     };
 
     eventSource.onopen = () => {
+      setIsStreamConnected(true);
       if (!cancelled) {
         setError((previous) =>
           previous === "Realtime connection interrupted. Trying to recover..." ? null : previous,
@@ -278,6 +281,10 @@ export default function NotificationsInboxPage() {
           />
           <div className="flex items-center gap-3">
             <Badge
+              label={isStreamConnected ? "Live" : "Reconnecting"}
+              tone={isStreamConnected ? "good" : "warn"}
+            />
+            <Badge
               label={`${inbox.unreadCount} unread`}
               tone={hasUnread ? "warn" : "neutral"}
             />
@@ -301,14 +308,27 @@ export default function NotificationsInboxPage() {
         ) : null}
 
         {isLoading ? (
-          <div className="rounded-2xl border border-(--app-border) px-4 py-8 text-center text-sm text-(--app-muted)">
-            Loading notifications...
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div
+                key={index}
+                className="rounded-2xl border border-(--app-border) px-4 py-4"
+                aria-hidden="true"
+              >
+                <div className="h-4 w-2/5 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                <div className="mt-2 h-3 w-full animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+              </div>
+            ))}
           </div>
         ) : null}
 
         {emptyState ? (
           <div className="rounded-2xl border border-(--app-border) px-4 py-8 text-center text-sm text-(--app-muted)">
-            No notifications yet.
+            <div className="font-semibold text-foreground">No notifications yet</div>
+            <div className="mt-1 text-xs text-(--app-muted)">
+              New review events and mentions will appear here in realtime.
+            </div>
           </div>
         ) : null}
 

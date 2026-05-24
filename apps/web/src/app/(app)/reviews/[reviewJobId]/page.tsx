@@ -1,9 +1,33 @@
 import { Badge, Card, SectionTitle } from "@/components/ui";
 
 const findings = [
-  { title: "Sensitive token logged", severity: "critical", confidence: 91, file: "src/logging.ts" },
-  { title: "Missing retry backoff", severity: "warning", confidence: 71, file: "src/worker/retry.ts" },
-  { title: "Unhandled null payload", severity: "warning", confidence: 63, file: "src/webhooks/parser.ts" },
+  {
+    title: "Sensitive token logged",
+    severity: "critical",
+    confidence: 91,
+    file: "src/logging.ts",
+    before: "logger.info({ token: accessToken }, 'sync started')",
+    after: "logger.info({ token: mask(accessToken) }, 'sync started')",
+    impact: "High data-exposure risk",
+  },
+  {
+    title: "Missing retry backoff",
+    severity: "warning",
+    confidence: 71,
+    file: "src/worker/retry.ts",
+    before: "await queue.enqueue(job, { delayMs: 0 })",
+    after: "await queue.enqueue(job, { delayMs: calculateBackoff(attempt) })",
+    impact: "May amplify downstream outages",
+  },
+  {
+    title: "Unhandled null payload",
+    severity: "warning",
+    confidence: 63,
+    file: "src/webhooks/parser.ts",
+    before: "const actor = payload.actor.login",
+    after: "const actor = payload.actor?.login ?? 'unknown'",
+    impact: "Can trigger runtime exceptions",
+  },
 ];
 
 export default function ReviewDetailPage() {
@@ -55,6 +79,7 @@ export default function ReviewDetailPage() {
                 <Badge label={`${finding.severity} · ${finding.confidence}%`} tone={finding.severity === "critical" ? "bad" : "warn"} />
               </div>
               <div className="text-xs text-[color:var(--app-muted)]">{finding.file}</div>
+              <div className="mt-1 text-xs font-medium text-[color:var(--app-accent)]">{finding.impact}</div>
               <div className="mt-2">
                 <div className="mb-1 flex items-center justify-between text-[11px] text-[color:var(--app-muted)]">
                   <span>AI confidence</span>
@@ -67,8 +92,15 @@ export default function ReviewDetailPage() {
                   />
                 </div>
               </div>
-              <div className="mt-2 rounded-xl bg-[color:var(--app-panel-strong)] px-3 py-2 text-xs text-[color:var(--app-muted)]">
-                Diff viewer hook: open in DevFlow diff viewer
+              <div className="mt-2 grid gap-2 lg:grid-cols-2">
+                <div className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/70 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-[color:var(--app-muted)]">Before</div>
+                  <code className="mt-1 block text-xs text-[color:var(--app-danger)]">{finding.before}</code>
+                </div>
+                <div className="rounded-xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/70 px-3 py-2">
+                  <div className="text-[10px] uppercase tracking-[0.15em] text-[color:var(--app-muted)]">Suggested fix</div>
+                  <code className="mt-1 block text-xs text-[color:var(--app-success)]">{finding.after}</code>
+                </div>
               </div>
             </div>
           ))}

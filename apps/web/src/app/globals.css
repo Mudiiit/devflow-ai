@@ -15,6 +15,22 @@
   --app-radius: 20px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg: #151718;
+    --app-fg: #f7f4ee;
+    --app-muted: #b1aba2;
+    --app-panel: #1f2325;
+    --app-panel-strong: #272b2e;
+    --app-border: #3a403f;
+    --app-accent: #2f93a1;
+    --app-accent-2: #e3a93f;
+    --app-accent-3: #f7f4ee;
+    --app-danger: #ff6f61;
+    --app-success: #56b987;
+  }
+}
+
 @theme inline {
   --color-background: var(--app-bg);
   --color-foreground: var(--app-fg);
@@ -39,11 +55,26 @@ body {
   box-shadow: 0 25px 80px rgba(11, 95, 107, 0.08);
 }
 
+@media (prefers-color-scheme: dark) {
+  .app-shell-gradient {
+    background:
+      linear-gradient(135deg, rgba(31, 35, 37, 0.95) 0%, rgba(24, 27, 29, 0.9) 50%, rgba(21, 23, 24, 0.95) 100%);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.35);
+  }
+}
+
 .glass-panel {
   background: rgba(255, 250, 243, 0.9);
   border: 1px solid var(--app-border);
   border-radius: 16px;
   box-shadow: 0 18px 50px rgba(18, 17, 15, 0.08);
+}
+
+@media (prefers-color-scheme: dark) {
+  .glass-panel {
+    background: rgba(31, 35, 37, 0.9);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+  }
 }
 
 .brand-title {
