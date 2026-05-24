@@ -30,6 +30,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const commandItems = useMemo<CommandItem[]>(
     () => [
@@ -127,10 +128,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [pathname]);
+
   return (
     <div className="min-h-screen w-full px-6 py-6 sm:px-10">
       <div className="app-shell-gradient grid min-h-[90vh] grid-cols-1 gap-6 px-4 py-5 sm:grid-cols-[260px_1fr] sm:gap-8 sm:px-8">
-        <aside className="flex flex-col gap-6 sm:sticky sm:top-6 sm:self-start">
+        <aside className="hidden flex-col gap-6 sm:sticky sm:top-6 sm:flex sm:self-start">
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
@@ -196,10 +201,97 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </aside>
 
+        {mobileNavOpen ? (
+          <div className="fixed inset-0 z-40 bg-black/30 px-4 py-4 sm:hidden" onClick={() => setMobileNavOpen(false)}>
+            <aside
+              className="flex h-full flex-col gap-6 overflow-auto rounded-[28px] border border-[color:var(--app-border)] bg-[color:var(--app-bg)] p-5 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
+                    DevFlow AI
+                  </div>
+                  <h1 className="brand-title text-2xl font-semibold text-[color:var(--app-fg)]">
+                    Mission Control
+                  </h1>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileNavOpen(false)}
+                  className="rounded-full border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+                  aria-label="Close navigation"
+                >
+                  Close
+                </button>
+              </div>
+
+              <nav className="grid gap-2" aria-label="Primary navigation">
+                {navItems.map((item) => {
+                  const active =
+                    pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={classNames(
+                        "rounded-2xl px-4 py-3 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]",
+                        active
+                          ? "bg-[color:var(--app-accent)] text-white shadow-lg"
+                          : "text-[color:var(--app-muted)] hover:bg-[color:var(--app-panel-strong)]",
+                      )}
+                      onClick={() => setMobileNavOpen(false)}
+                    >
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="glass-panel flex flex-col gap-3 px-4 py-4 text-sm">
+                <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
+                  Status
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[color:var(--app-fg)]">AI Queue</span>
+                  <span className="rounded-full bg-[color:var(--app-accent-2)] px-2 py-1 text-xs font-semibold text-[color:var(--app-fg)]">
+                    3 jobs
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[color:var(--app-fg)]">Risk Pulse</span>
+                  <span className="text-xs font-semibold text-[color:var(--app-danger)]">Elevated</span>
+                </div>
+              </div>
+
+              <div className="glass-panel px-4 py-4 text-sm">
+                <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
+                  Workspace
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="font-semibold text-[color:var(--app-fg)]">Acme Labs</span>
+                  <span className="text-xs text-[color:var(--app-muted)]">Owner</span>
+                </div>
+                <button className="mt-3 w-full rounded-xl border border-[color:var(--app-border)] px-3 py-2 text-xs font-semibold text-[color:var(--app-fg)] transition hover:border-[color:var(--app-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]">
+                  Switch workspace
+                </button>
+              </div>
+            </aside>
+          </div>
+        ) : null}
+
         <div className="flex min-w-0 flex-col gap-6">
           <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-[color:var(--app-accent)]"></div>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(true)}
+                className="h-10 w-10 rounded-2xl bg-[color:var(--app-accent)] text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:hidden"
+                aria-label="Open navigation menu"
+              >
+                ☰
+              </button>
+              <div className="hidden h-10 w-10 rounded-2xl bg-[color:var(--app-accent)] sm:block"></div>
               <div>
                 <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">
                   Live insights

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Badge, Card, SectionTitle } from "@/components/ui";
+import { Badge, Card, SectionTitle, SkeletonBlock } from "@/components/ui";
 import { fetchApi, getApiBase } from "@/lib/api";
 
 type NotificationType =
@@ -279,25 +279,30 @@ export default function NotificationsInboxPage() {
             title="Notification inbox"
             subtitle="Realtime review updates"
           />
-          <div className="flex items-center gap-3">
-            <Badge
-              label={isStreamConnected ? "Live" : "Reconnecting"}
-              tone={isStreamConnected ? "good" : "warn"}
-            />
-            <Badge
-              label={`${inbox.unreadCount} unread`}
-              tone={hasUnread ? "warn" : "neutral"}
-            />
-            <button
-              type="button"
-              onClick={() => {
-                void markAllAsRead();
-              }}
-              disabled={!hasUnread || isMarkingAll}
-              className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isMarkingAll ? "Marking..." : "Mark all read"}
-            </button>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge
+                label={isStreamConnected ? "Live" : "Reconnecting"}
+                tone={isStreamConnected ? "good" : "warn"}
+              />
+              <Badge
+                label={`${inbox.unreadCount} unread`}
+                tone={hasUnread ? "warn" : "neutral"}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  void markAllAsRead();
+                }}
+                disabled={!hasUnread || isMarkingAll}
+                className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isMarkingAll ? "Marking..." : "Mark all read"}
+              </button>
+            </div>
+            <div className="text-xs text-(--app-muted)">
+              Review events stream in realtime and stay pinned to the top of the inbox.
+            </div>
           </div>
         </div>
 
@@ -315,9 +320,9 @@ export default function NotificationsInboxPage() {
                 className="rounded-2xl border border-(--app-border) px-4 py-4"
                 aria-hidden="true"
               >
-                <div className="h-4 w-2/5 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
-                <div className="mt-2 h-3 w-full animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
-                <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-[color:var(--app-panel-strong)]" />
+                <SkeletonBlock className="h-4 w-2/5" />
+                <SkeletonBlock className="mt-2 h-3 w-full" />
+                <SkeletonBlock className="mt-2 h-3 w-3/4" />
               </div>
             ))}
           </div>
@@ -337,7 +342,10 @@ export default function NotificationsInboxPage() {
             {inbox.notifications.map((notification) => (
               <div
                 key={notification.id}
-                className="rounded-2xl border border-(--app-border) px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/30"
+                className={[
+                  "rounded-2xl border border-(--app-border) px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/30",
+                  notification.unread ? "border-l-4 border-l-[color:var(--app-accent)]" : "",
+                ].join(" ")}
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
