@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { GithubInstallationsRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, type GithubInstallation, type NewRepository, type Repository, type ReviewJob } from '@devflow/database';
+import { RequestContextService } from '@devflow/logger';
+import { createTraceCarrier } from '@devflow/tracing';
 import { GitHubAppService } from './github-app.service.js';
 import type {
   GitHubInstallationPayload,
@@ -26,6 +28,7 @@ export class RepositorySyncService {
     private readonly pullRequestsRepository: PullRequestsRepository,
     private readonly reviewJobsRepository: ReviewJobsRepository,
     private readonly organizationService: OrganizationService,
+    private readonly requestContextService: RequestContextService,
   ) {}
 
   async listInstallationsForUser(userId: string): Promise<GitHubInstallationSummaryDto[]> {
@@ -277,6 +280,8 @@ export class RepositorySyncService {
         githubPullRequestId: payload.pull_request.id,
         headSha: payload.pull_request.head.sha,
         baseSha: payload.pull_request.base.sha,
+        requestId: this.requestContextService.current()?.requestId,
+        traceContext: createTraceCarrier(),
       },
       metadata: {
         installationId: payload.installation.id,

@@ -2,6 +2,7 @@ import { Module, RequestMethod } from '@nestjs/common';
 import type { DynamicModule, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import type { DatabaseClient } from '@devflow/database';
+import { initializeTracing } from '@devflow/tracing';
 import { HealthController } from './health.controller.js';
 import { HealthService } from './health.service.js';
 import { MetricsController } from './metrics.controller.js';
@@ -22,6 +23,14 @@ import type { ObservabilityModuleOptions } from './types.js';
 })
 export class ObservabilityModule implements NestModule {
   static register(options: ObservabilityModuleOptions): DynamicModule {
+    const tracingOptions: Parameters<typeof initializeTracing>[0] = {
+      serviceName: options.serviceName,
+      ...(options.version === undefined ? {} : { serviceVersion: options.version }),
+      ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT === undefined ? {} : { otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT }),
+    };
+
+    void initializeTracing(tracingOptions);
+
     return {
       module: ObservabilityModule,
       providers: [

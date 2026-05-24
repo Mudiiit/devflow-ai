@@ -1,10 +1,12 @@
 import type { InjectionToken } from '@nestjs/common';
+import type { TraceCarrier } from '@devflow/tracing';
 
 export type ObservabilityMetricLabels = Readonly<Record<string, string | number | boolean | null | undefined>>;
 
 export type ObservabilityRequestContext = Readonly<{
   readonly requestId: string;
   readonly traceId: string;
+  readonly spanId?: string;
   readonly serviceName: string;
   readonly source: 'http' | 'worker';
   readonly operation?: string;
@@ -12,6 +14,7 @@ export type ObservabilityRequestContext = Readonly<{
   readonly method?: string;
   readonly jobId?: string;
   readonly correlationId?: string;
+  readonly traceContext?: TraceCarrier;
   readonly startedAt: number;
 }>;
 

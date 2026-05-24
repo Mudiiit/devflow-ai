@@ -1,12 +1,14 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
-import { ReviewJobsRepository } from '@devflow/database';
+import { ReviewJobsRepository, type ReviewJob } from '@devflow/database';
 import {
   AuditLogService,
   MetricsService,
   RequestContextService,
   StructuredLoggerService,
 } from '@devflow/logger';
+import { SpanKind } from '@opentelemetry/api';
+import { extractTraceContext, getCurrentTraceSnapshot, runWithSpan } from '@devflow/tracing';
 import { ReviewPipelineService } from './review-pipeline.service.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
@@ -67,17 +69,21 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
     }
 
     const pollStartedAt = Date.now();
-    const pollTraceId = randomUUID();
-    await this.requestContextService.run(
-      {
-        requestId: pollTraceId,
-        traceId: pollTraceId,
-        serviceName: 'worker',
-        source: 'worker',
-        operation: 'poll',
-        startedAt: pollStartedAt,
-      },
-      async () => {
+    await runWithSpan('worker.poll', { kind: SpanKind.INTERNAL }, async () => {
+      const traceSnapshot = getCurrentTraceSnapshot();
+
+      await this.requestContextService.run(
+        {
+          requestId: randomUUID(),
+          traceId: traceSnapshot.traceId ?? randomUUID(),
+          spanId: traceSnapshot.spanId,
+          serviceName: 'worker',
+          source: 'worker',
+          operation: 'poll',
+          startedAt: pollStartedAt,
+          traceContext: traceSnapshot.carrier,
+        },
+        async () => {
         try {
           const availableSlots = this.maxConcurrency - this.activeJobs.size;
           this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
@@ -117,7 +123,7 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
 
             this.activeJobs.add(job.id);
             this.metricsService.setGauge('devflow_worker_active_jobs', this.activeJobs.size, { service: 'worker' });
-            void this.processQueuedJob(job.id)
+            void this.processQueuedJob(job)
               .catch((error: unknown) => {
                 this.logger.event('error', 'worker.job.unhandled_error', {
                   jobId: job.id,
@@ -138,48 +144,67 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
           }, error instanceof Error ? error : undefined);
           await this.schedulePoll(this.pollIntervalMs);
         }
-      },
-    );
+        },
+      );
+    });
   }
 
-  private async processQueuedJob(reviewJobId: string): Promise<void> {
+  private async processQueuedJob(reviewJob: ReviewJob): Promise<void> {
     const startedAt = Date.now();
-    const traceId = randomUUID();
+    const input = reviewJob.input;
+    const reviewJobInput = input !== null && typeof input === 'object' ? input as Record<string, unknown> : {};
+    const traceContext = reviewJobInput.traceContext !== undefined && reviewJobInput.traceContext !== null && typeof reviewJobInput.traceContext === 'object'
+      ? (reviewJobInput.traceContext as Record<string, string>)
+      : undefined;
+    const requestId = typeof reviewJobInput.requestId === 'string' && reviewJobInput.requestId.length > 0 ? reviewJobInput.requestId : reviewJob.id;
+    const parentContext = extractTraceContext(traceContext);
 
-    return this.requestContextService.run(
-      {
-        requestId: traceId,
-        traceId,
-        serviceName: 'worker',
-        source: 'worker',
-        operation: 'review_job',
-        jobId: reviewJobId,
-        startedAt,
+    return runWithSpan('worker.review_job', {
+      kind: SpanKind.CONSUMER,
+      parentContext,
+      attributes: {
+        'review.job.id': reviewJob.id,
+        'review.job.status': reviewJob.status,
       },
-      async () => {
-        this.logger.event('info', 'worker.job.started', { jobId: reviewJobId });
+    }, async () => {
+      const traceSnapshot = getCurrentTraceSnapshot();
+
+      return this.requestContextService.run(
+        {
+          requestId,
+          traceId: traceSnapshot.traceId ?? requestId,
+          spanId: traceSnapshot.spanId,
+          serviceName: 'worker',
+          source: 'worker',
+          operation: 'review_job',
+          jobId: reviewJob.id,
+          startedAt,
+          traceContext: traceSnapshot.carrier,
+        },
+        async () => {
+          this.logger.event('info', 'worker.job.started', { jobId: reviewJob.id });
         await this.auditLogService.recordHttpRequest({
           action: 'review',
           entityType: 'review_job',
-          entityId: reviewJobId,
-          reviewJobId,
+          entityId: reviewJob.id,
+          reviewJobId: reviewJob.id,
           metadata: {
             event: 'started',
           },
         });
 
         try {
-          await this.reviewPipelineService.processReviewJob(reviewJobId);
+          await this.reviewPipelineService.processReviewJob(reviewJob.id);
           const durationMs = Date.now() - startedAt;
           this.metricsService.increment('devflow_worker_jobs_total', { service: 'worker', status: 'completed' });
           this.metricsService.observe('devflow_worker_job_duration_ms', durationMs, { service: 'worker', status: 'completed' });
-          this.logger.event('info', 'worker.job.completed', { jobId: reviewJobId, durationMs });
+          this.logger.event('info', 'worker.job.completed', { jobId: reviewJob.id, durationMs });
 
           await this.auditLogService.recordHttpRequest({
             action: 'review',
             entityType: 'review_job',
-            entityId: reviewJobId,
-            reviewJobId,
+            entityId: reviewJob.id,
+            reviewJobId: reviewJob.id,
             metadata: {
               event: 'completed',
               durationMs,
@@ -190,7 +215,7 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
           this.metricsService.increment('devflow_worker_jobs_total', { service: 'worker', status: 'failed' });
           this.metricsService.observe('devflow_worker_job_duration_ms', durationMs, { service: 'worker', status: 'failed' });
           this.logger.event('error', 'worker.job.failed', {
-            jobId: reviewJobId,
+            jobId: reviewJob.id,
             durationMs,
             error: error instanceof Error ? error.message : 'Unknown job failure',
           }, error instanceof Error ? error : undefined);
@@ -198,8 +223,8 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
           await this.auditLogService.recordHttpRequest({
             action: 'analysis',
             entityType: 'review_job',
-            entityId: reviewJobId,
-            reviewJobId,
+            entityId: reviewJob.id,
+            reviewJobId: reviewJob.id,
             metadata: {
               event: 'failed',
               durationMs,
@@ -209,7 +234,8 @@ export class ReviewJobDispatcherService implements OnModuleInit, OnModuleDestroy
 
           throw error;
         }
-      },
-    );
+        },
+      );
+    });
   }
 }

@@ -1,4 +1,6 @@
 import type { GitHubPullRequestFile, GitHubReviewComment, GitHubReviewState, PublishReviewInput, PublishedReviewResult } from './types.js';
+import { SpanKind } from '@opentelemetry/api';
+import { injectTraceHeaders, runWithSpan } from '@devflow/tracing';
 
 class GitHubApiError extends Error {
   public readonly statusCode: number;
@@ -75,62 +77,80 @@ export class GitHubReviewClient {
     pullRequestNumber: number,
     accessToken: string,
   ): Promise<GitHubPullRequestFile[]> {
-    const files: GitHubPullRequestFile[] = [];
+    return runWithSpan('github.review.fetch_files', {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        'github.owner': owner,
+        'github.repository': repository,
+        'github.pull_request.number': pullRequestNumber,
+      },
+    }, async () => {
+      const files: GitHubPullRequestFile[] = [];
 
-    for (let page = 1; ; page += 1) {
-      const response = await retryFetch(async () => {
-        const request = await fetch(
-          `${this.apiBase}/repos/${owner}/${repository}/pulls/${pullRequestNumber}/files?per_page=100&page=${page}`,
-          { headers: buildHeaders(accessToken) },
-        );
+      for (let page = 1; ; page += 1) {
+        const response = await retryFetch(async () => {
+          const request = await fetch(
+            `${this.apiBase}/repos/${owner}/${repository}/pulls/${pullRequestNumber}/files?per_page=100&page=${page}`,
+            { headers: injectTraceHeaders(buildHeaders(accessToken)) },
+          );
 
-        if (!request.ok) {
-          throw new GitHubApiError(`GitHub pull request file request failed with status ${request.status}`, request.status);
+          if (!request.ok) {
+            throw new GitHubApiError(`GitHub pull request file request failed with status ${request.status}`, request.status);
+          }
+
+          return (await request.json()) as ReadonlyArray<GitHubPullRequestFile>;
+        });
+
+        if (response.length === 0) {
+          break;
         }
 
-        return (await request.json()) as ReadonlyArray<GitHubPullRequestFile>;
-      });
-
-      if (response.length === 0) {
-        break;
+        files.push(...response);
       }
 
-      files.push(...response);
-    }
-
-    return files;
+      return files;
+    });
   }
 
   public async publishReview(input: PublishReviewInput, accessToken: string): Promise<PublishedReviewResult> {
-    const reviewComments = input.comments.map((comment) => this.toReviewCommentPayload(comment));
+    return runWithSpan('github.review.publish', {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        'github.owner': input.owner,
+        'github.repository': input.repository,
+        'github.pull_request.number': input.pullRequestNumber,
+      },
+    }, async () => {
+      const reviewComments = input.comments.map((comment) => this.toReviewCommentPayload(comment));
 
-    const response = await retryFetch(async () => {
-      const request = await fetch(
-        `${this.apiBase}/repos/${input.owner}/${input.repository}/pulls/${input.pullRequestNumber}/reviews`,
-        {
-          method: 'POST',
-          headers: buildHeaders(accessToken),
-          body: JSON.stringify({
-            commit_id: input.commitSha,
-            body: input.body,
-            event: toReviewState(input.state),
-            comments: reviewComments,
-          }),
-        },
-      );
+      const response = await retryFetch(async () => {
+        const request = await fetch(
+          `${this.apiBase}/repos/${input.owner}/${input.repository}/pulls/${input.pullRequestNumber}/reviews`,
+          {
+            method: 'POST',
+            headers: injectTraceHeaders(buildHeaders(accessToken)),
+            body: JSON.stringify({
+              commit_id: input.commitSha,
+              body: input.body,
+              event: toReviewState(input.state),
+              comments: reviewComments,
+            }),
+          },
+        );
 
-      if (!request.ok) {
-        throw new GitHubApiError(`GitHub review publish failed with status ${request.status}`, request.status);
-      }
+        if (!request.ok) {
+          throw new GitHubApiError(`GitHub review publish failed with status ${request.status}`, request.status);
+        }
 
-      return (await request.json()) as GitHubReviewResponse;
+        return (await request.json()) as GitHubReviewResponse;
+      });
+
+      return {
+        id: response.id,
+        state: response.state,
+        htmlUrl: response.html_url,
+      };
     });
-
-    return {
-      id: response.id,
-      state: response.state,
-      htmlUrl: response.html_url,
-    };
   }
 
   private toReviewCommentPayload(comment: GitHubReviewComment): Record<string, unknown> {

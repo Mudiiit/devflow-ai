@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { SpanKind } from '@opentelemetry/api';
 import {
   createAIProvider,
   type AIProvider,
@@ -33,6 +34,7 @@ import {
   type GitHubReviewState,
   type PublishedReviewResult,
 } from '@devflow/github-sdk';
+import { runWithSpan } from '@devflow/tracing';
 
 type ReviewJobInputPayload = Record<string, unknown> & {
   readonly focusAreas?: ReadonlyArray<ReviewFocusArea>;
@@ -313,6 +315,12 @@ export class ReviewPipelineService {
   ) {}
 
   async processReviewJob(reviewJobId: string): Promise<ReviewOrchestrationResult> {
+    return runWithSpan('review.job.process', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'review.job.id': reviewJobId,
+      },
+    }, async () => {
     const reviewJob = await this.reviewJobsRepository.findById(reviewJobId);
     if (!reviewJob) {
       throw new Error(`Review job ${reviewJobId} was not found`);
@@ -476,6 +484,7 @@ export class ReviewPipelineService {
 
       throw error;
     }
+    });
   }
 
   private async executeWithFallback(input: {
@@ -505,51 +514,60 @@ export class ReviewPipelineService {
 
       try {
         const startedAt = Date.now();
-        const result = await this.executionEngine.execute(
-          {
-            provider,
-            model,
-            files: input.files,
-            focusAreas: input.focusAreas,
-            maxChunkTokens: input.maxChunkTokens,
-            timeoutMs: input.timeoutMs,
-            requestId: input.requestId,
-            promptVersion: 'review-v1',
+        const result = await runWithSpan('review.execution.provider', {
+          kind: SpanKind.INTERNAL,
+          attributes: {
+            'review.job.id': input.reviewJob.id,
+            'ai.provider': providerName,
+            'ai.model': model,
           },
-          {
-            onStateChange: async (state) => {
-              await this.reviewJobsRepository.updateStatus(input.reviewJob.id, state, {
-                leaseToken: input.leaseToken,
-              });
+        }, async () => {
+          return this.executionEngine.execute(
+            {
+              provider,
+              model,
+              files: input.files,
+              focusAreas: input.focusAreas,
+              maxChunkTokens: input.maxChunkTokens,
+              timeoutMs: input.timeoutMs,
+              requestId: input.requestId,
+              promptVersion: 'review-v1',
             },
-            onChunkResult: async (chunkResult: ReviewChunkResult) => {
-              await this.aiReviewChunksRepository.upsertForReviewJob({
-                reviewJobId: input.reviewJob.id,
-                pullRequestId: input.reviewJob.pullRequestId,
-                repositoryId: input.reviewJob.repositoryId,
-                chunkIndex: chunkResult.chunkIndex,
-                chunkType: chunkResult.fileKind === 'patch' ? 'diff' : 'file',
-                sourcePath: chunkResult.sourcePath,
-                lineStart: chunkResult.lineStart ?? null,
-                lineEnd: chunkResult.lineEnd ?? null,
-                tokenCount: chunkResult.tokenCount,
-                content: chunkResult.content,
-                summary: chunkResult.summary,
-                metadata: {
-                  focusArea: chunkResult.focusArea,
-                  fileStatus: chunkResult.fileStatus,
-                  fileKind: chunkResult.fileKind,
-                  previousPath: chunkResult.previousPath ?? null,
-                  promptVersion: chunkResult.promptVersion,
-                  provider: chunkResult.provider,
-                  model: chunkResult.model,
-                  findingCount: chunkResult.findings.length,
-                  usage: chunkResult.usage,
-                },
-              });
+            {
+              onStateChange: async (state) => {
+                await this.reviewJobsRepository.updateStatus(input.reviewJob.id, state, {
+                  leaseToken: input.leaseToken,
+                });
+              },
+              onChunkResult: async (chunkResult: ReviewChunkResult) => {
+                await this.aiReviewChunksRepository.upsertForReviewJob({
+                  reviewJobId: input.reviewJob.id,
+                  pullRequestId: input.reviewJob.pullRequestId,
+                  repositoryId: input.reviewJob.repositoryId,
+                  chunkIndex: chunkResult.chunkIndex,
+                  chunkType: chunkResult.fileKind === 'patch' ? 'diff' : 'file',
+                  sourcePath: chunkResult.sourcePath,
+                  lineStart: chunkResult.lineStart ?? null,
+                  lineEnd: chunkResult.lineEnd ?? null,
+                  tokenCount: chunkResult.tokenCount,
+                  content: chunkResult.content,
+                  summary: chunkResult.summary,
+                  metadata: {
+                    focusArea: chunkResult.focusArea,
+                    fileStatus: chunkResult.fileStatus,
+                    fileKind: chunkResult.fileKind,
+                    previousPath: chunkResult.previousPath ?? null,
+                    promptVersion: chunkResult.promptVersion,
+                    provider: chunkResult.provider,
+                    model: chunkResult.model,
+                    findingCount: chunkResult.findings.length,
+                    usage: chunkResult.usage,
+                  },
+                });
+              },
             },
-          },
-        );
+          );
+        });
 
         return {
           ...result,
@@ -723,29 +741,39 @@ export class ReviewPipelineService {
     readonly riskScore: number;
     readonly confidenceScore: number;
   }): Promise<void> {
-    if (!input.recipientUserId) {
+    const recipientUserId = input.recipientUserId;
+
+    if (recipientUserId === null) {
       return;
     }
 
-    await this.notificationsRepository.createNotification({
-      userId: input.recipientUserId,
-      type: 'review_completed',
-      deliveryChannel: 'in_app',
-      title: `Review completed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
-      body: `DevFlow AI completed the review with ${input.findingsCount} findings and ${input.overallSeverity} severity.`,
-      actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
-      payload: {
-        reviewJobId: input.reviewJobId,
-        repositoryFullName: input.repositoryFullName,
-        pullRequestNumber: input.pullRequestNumber,
-        findingsCount: input.findingsCount,
-        overallSeverity: input.overallSeverity,
-        riskScore: input.riskScore,
-        confidenceScore: input.confidenceScore,
+    await runWithSpan('review.notification.success', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'review.job.id': input.reviewJobId,
+        'review.notification.type': 'review_completed',
       },
-      metadata: {
-        source: 'review_pipeline',
-      },
+    }, async () => {
+      await this.notificationsRepository.createNotification({
+        userId: recipientUserId,
+        type: 'review_completed',
+        deliveryChannel: 'in_app',
+        title: `Review completed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
+        body: `DevFlow AI completed the review with ${input.findingsCount} findings and ${input.overallSeverity} severity.`,
+        actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
+        payload: {
+          reviewJobId: input.reviewJobId,
+          repositoryFullName: input.repositoryFullName,
+          pullRequestNumber: input.pullRequestNumber,
+          findingsCount: input.findingsCount,
+          overallSeverity: input.overallSeverity,
+          riskScore: input.riskScore,
+          confidenceScore: input.confidenceScore,
+        },
+        metadata: {
+          source: 'review_pipeline',
+        },
+      });
     });
   }
 
@@ -756,26 +784,36 @@ export class ReviewPipelineService {
     readonly reviewJobId: string;
     readonly message: string;
   }): Promise<void> {
-    if (!input.recipientUserId) {
+    const recipientUserId = input.recipientUserId;
+
+    if (recipientUserId === null) {
       return;
     }
 
-    await this.notificationsRepository.createNotification({
-      userId: input.recipientUserId,
-      type: 'review_failed',
-      deliveryChannel: 'in_app',
-      title: `Review failed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
-      body: input.message,
-      actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
-      payload: {
-        reviewJobId: input.reviewJobId,
-        repositoryFullName: input.repositoryFullName,
-        pullRequestNumber: input.pullRequestNumber,
-        errorMessage: input.message,
+    await runWithSpan('review.notification.failure', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'review.job.id': input.reviewJobId,
+        'review.notification.type': 'review_failed',
       },
-      metadata: {
-        source: 'review_pipeline',
-      },
+    }, async () => {
+      await this.notificationsRepository.createNotification({
+        userId: recipientUserId,
+        type: 'review_failed',
+        deliveryChannel: 'in_app',
+        title: `Review failed for ${input.repositoryFullName} #${input.pullRequestNumber}`,
+        body: input.message,
+        actionUrl: `/dashboard/reviews/${input.reviewJobId}`,
+        payload: {
+          reviewJobId: input.reviewJobId,
+          repositoryFullName: input.repositoryFullName,
+          pullRequestNumber: input.pullRequestNumber,
+          errorMessage: input.message,
+        },
+        metadata: {
+          source: 'review_pipeline',
+        },
+      });
     });
   }
 

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { getCurrentTraceSnapshot } from '@devflow/tracing';
 import { RequestContextService } from './request-context.service.js';
 import type { ObservabilityMetricLabels } from './types.js';
 
@@ -12,6 +13,7 @@ type StructuredLogPayload = {
   timestamp: string;
   requestId?: string;
   traceId?: string;
+  spanId?: string;
   source?: 'http' | 'worker';
   operation?: string;
   path?: string;
@@ -50,16 +52,21 @@ export class StructuredLoggerService {
     error?: Error,
   ): void {
     const context = this.requestContextService.current();
+    const traceSnapshot = getCurrentTraceSnapshot();
+    const requestId = context?.requestId;
+    const traceId = context?.traceId ?? traceSnapshot.traceId;
+    const spanId = context?.spanId ?? traceSnapshot.spanId;
     const payload: StructuredLogPayload = {
       level,
       message,
       serviceName: this.serviceName,
       timestamp: new Date().toISOString(),
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(traceId === undefined ? {} : { traceId }),
+      ...(spanId === undefined ? {} : { spanId }),
       ...(context === undefined
         ? {}
         : {
-            requestId: context.requestId,
-            traceId: context.traceId,
             source: context.source,
             operation: context.operation,
             path: context.path,
@@ -105,16 +112,21 @@ export class StructuredLoggerService {
 
   private write(level: StructuredLogLevel, message: string, input: { context?: string; errorStack?: string }): void {
     const context = this.requestContextService.current();
+    const traceSnapshot = getCurrentTraceSnapshot();
+    const requestId = context?.requestId;
+    const traceId = context?.traceId ?? traceSnapshot.traceId;
+    const spanId = context?.spanId ?? traceSnapshot.spanId;
     const payload: StructuredLogPayload = {
       level,
       message,
       serviceName: this.serviceName,
       timestamp: new Date().toISOString(),
+      ...(requestId === undefined ? {} : { requestId }),
+      ...(traceId === undefined ? {} : { traceId }),
+      ...(spanId === undefined ? {} : { spanId }),
       ...(context === undefined
         ? {}
         : {
-            requestId: context.requestId,
-            traceId: context.traceId,
             source: context.source,
             operation: context.operation,
             path: context.path,

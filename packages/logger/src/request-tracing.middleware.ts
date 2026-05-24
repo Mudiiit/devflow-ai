@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import type { NestMiddleware } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { context as otelContext, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import type { NextFunction, Request, Response } from 'express';
+import { createTraceCarrier, extractTraceContext, getCurrentTraceSnapshot, startSpan } from '@devflow/tracing';
 import { AuditLogService } from './audit-log.service.js';
 import { MetricsService } from './metrics.service.js';
 import { RequestContextService } from './request-context.service.js';
@@ -58,21 +60,82 @@ export class RequestTracingMiddleware implements NestMiddleware {
 
   use(request: Request, response: Response, next: NextFunction): void {
     const requestId = normalizeHeaderValue(request.header('x-request-id')) ?? randomUUID();
-    const traceId = normalizeHeaderValue(request.header('x-trace-id')) ?? randomUUID();
     const startedAt = Date.now();
     const path = request.originalUrl ?? request.url;
+    const incomingTraceCarrier: Record<string, string> = {};
+    const traceparent = normalizeHeaderValue(request.header('traceparent'));
+    const tracestate = normalizeHeaderValue(request.header('tracestate'));
+    const baggage = normalizeHeaderValue(request.header('baggage'));
+
+    if (traceparent !== undefined) {
+      incomingTraceCarrier.traceparent = traceparent;
+    }
+
+    if (tracestate !== undefined) {
+      incomingTraceCarrier.tracestate = tracestate;
+    }
+
+    if (baggage !== undefined) {
+      incomingTraceCarrier.baggage = baggage;
+    }
+
+    const incomingTraceContext = extractTraceContext(incomingTraceCarrier);
+    const spanHandle = startSpan('http.request', {
+      kind: SpanKind.SERVER,
+      parentContext: incomingTraceContext,
+      attributes: {
+        'http.method': request.method,
+        'http.target': path,
+        'service.name': this.options.serviceName,
+        'request.id': requestId,
+      },
+    });
+    const traceSnapshot = getCurrentTraceSnapshot(spanHandle.context);
     const context: ObservabilityRequestContext = {
       requestId,
-      traceId,
+      traceId: traceSnapshot.traceId ?? requestId,
+      traceContext: createTraceCarrier(spanHandle.context),
       serviceName: this.options.serviceName,
       source: 'http',
       path,
       method: request.method,
       startedAt,
+      ...(traceSnapshot.spanId === undefined ? {} : { spanId: traceSnapshot.spanId }),
     };
 
     response.setHeader('x-request-id', requestId);
-    response.setHeader('x-trace-id', traceId);
+    if (traceSnapshot.traceId !== undefined) {
+      response.setHeader('x-trace-id', traceSnapshot.traceId);
+    }
+    if (traceSnapshot.traceparent !== undefined) {
+      response.setHeader('traceparent', traceSnapshot.traceparent);
+    }
+    if (traceSnapshot.tracestate !== undefined) {
+      response.setHeader('tracestate', traceSnapshot.tracestate);
+    }
+
+    let spanEnded = false;
+    const endSpan = (statusCode: number, error?: Error): void => {
+      if (spanEnded) {
+        return;
+      }
+
+      spanEnded = true;
+      spanHandle.span.setAttributes({
+        'http.status_code': statusCode,
+      });
+
+      if (error !== undefined) {
+        spanHandle.span.recordException(error);
+        spanHandle.span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      } else if (statusCode >= 500) {
+        spanHandle.span.setStatus({ code: SpanStatusCode.ERROR });
+      } else {
+        spanHandle.span.setStatus({ code: SpanStatusCode.OK });
+      }
+
+      spanHandle.span.end();
+    };
 
     this.requestContextService.run(context, () => {
       this.logger.event('info', 'http.request.started', {
@@ -122,6 +185,8 @@ export class RequestTracingMiddleware implements NestMiddleware {
             }, error instanceof Error ? error : undefined);
           });
         }
+
+        endSpan(statusCode);
       });
 
       response.on('close', () => {
@@ -136,10 +201,11 @@ export class RequestTracingMiddleware implements NestMiddleware {
             path,
             durationMs,
           });
+          endSpan(response.statusCode);
         }
       });
 
-      next();
+      otelContext.with(spanHandle.context, () => next());
     });
   }
 }

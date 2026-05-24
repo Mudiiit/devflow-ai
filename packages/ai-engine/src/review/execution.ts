@@ -4,6 +4,8 @@ import { buildIdempotencyKey } from '../providers/request-utils.js';
 import { aggregateReviewResults } from './aggregation.js';
 import { chunkReviewFiles } from './chunking.js';
 import { buildReviewPrompt } from './prompts.js';
+import { SpanKind } from '@opentelemetry/api';
+import { runWithSpan } from '@devflow/tracing';
 import type {
   ReviewChunkResult,
   ReviewExecutionHooks,
@@ -132,88 +134,96 @@ const toIdempotencyKey = (providerName: AIProviderName, request: AIProviderReque
 
 export class ReviewExecutionEngine {
   public async execute(input: ReviewExecutionInput, hooks: ReviewExecutionHooks = {}): Promise<ReviewOrchestrationResult> {
-    const focusAreas = toFocusAreas(input.focusAreas);
-    const maxChunkTokens = input.maxChunkTokens ?? 2_000;
+    return runWithSpan('ai.review.execute', {
+      kind: SpanKind.INTERNAL,
+      attributes: {
+        'ai.provider': input.provider.provider,
+        'ai.model': input.model,
+      },
+    }, async () => {
+      const focusAreas = toFocusAreas(input.focusAreas);
+      const maxChunkTokens = input.maxChunkTokens ?? 2_000;
 
-    if (hooks.onStateChange !== undefined) {
-      await hooks.onStateChange('chunking');
-    }
+      if (hooks.onStateChange !== undefined) {
+        await hooks.onStateChange('chunking');
+      }
 
-    const chunks = chunkReviewFiles(input.files, {
-      maxTokensPerChunk: maxChunkTokens,
-      maxCharactersPerChunk: maxChunkTokens * 8,
-    });
+      const chunks = chunkReviewFiles(input.files, {
+        maxTokensPerChunk: maxChunkTokens,
+        maxCharactersPerChunk: maxChunkTokens * 8,
+      });
 
-    if (hooks.onStateChange !== undefined) {
-      await hooks.onStateChange('analyzing');
-    }
+      if (hooks.onStateChange !== undefined) {
+        await hooks.onStateChange('analyzing');
+      }
 
-    const chunkResults: ReviewChunkResult[] = [];
+      const chunkResults: ReviewChunkResult[] = [];
 
-    for (const chunk of chunks) {
-      for (const focusArea of focusAreas) {
-        const prompt = buildReviewPrompt({
-          focusArea,
-          chunk,
-        });
+      for (const chunk of chunks) {
+        for (const focusArea of focusAreas) {
+          const prompt = buildReviewPrompt({
+            focusArea,
+            chunk,
+          });
 
-        const request: AIProviderRequest = {
-          model: input.model,
-          messages: prompt.messages,
-          responseFormat: prompt.responseFormat,
-          maxOutputTokens: 1_500,
-          temperature: 0.1,
-        };
+          const request: AIProviderRequest = {
+            model: input.model,
+            messages: prompt.messages,
+            responseFormat: prompt.responseFormat,
+            maxOutputTokens: 1_500,
+            temperature: 0.1,
+          };
 
-        const context: AIRequestContext = {
-          requestId: input.requestId ?? toRequestId(input.provider.provider, chunk.chunkIndex, focusArea),
-          idempotencyKey: toIdempotencyKey(input.provider.provider, request),
-          ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
-        };
+          const context: AIRequestContext = {
+            requestId: input.requestId ?? toRequestId(input.provider.provider, chunk.chunkIndex, focusArea),
+            idempotencyKey: toIdempotencyKey(input.provider.provider, request),
+            ...(input.timeoutMs === undefined ? {} : { timeoutMs: input.timeoutMs }),
+          };
 
-        const response = await input.provider.complete(request, context);
-        const payload = parseResponsePayload(response.content);
-        const findings = normalizeFindings(payload.findings ?? payload.issues, focusArea);
-        const chunkResult: ReviewChunkResult = {
-          chunkIndex: chunk.chunkIndex,
-          sourcePath: chunk.sourcePath,
-          ...(chunk.previousPath === undefined ? {} : { previousPath: chunk.previousPath }),
-          fileStatus: chunk.fileStatus,
-          fileKind: chunk.fileKind,
-          content: chunk.content,
-          tokenCount: chunk.tokenCount,
-          lineStart: chunk.lineStart,
-          lineEnd: chunk.lineEnd,
-          focusArea,
-          promptVersion: prompt.promptVersion,
-          provider: response.provider,
-          model: response.model,
-          summary: extractSummary(payload),
-          findings,
-          usage: response.usage,
-          rawResponseId: response.id,
-        };
+          const response = await input.provider.complete(request, context);
+          const payload = parseResponsePayload(response.content);
+          const findings = normalizeFindings(payload.findings ?? payload.issues, focusArea);
+          const chunkResult: ReviewChunkResult = {
+            chunkIndex: chunk.chunkIndex,
+            sourcePath: chunk.sourcePath,
+            ...(chunk.previousPath === undefined ? {} : { previousPath: chunk.previousPath }),
+            fileStatus: chunk.fileStatus,
+            fileKind: chunk.fileKind,
+            content: chunk.content,
+            tokenCount: chunk.tokenCount,
+            lineStart: chunk.lineStart,
+            lineEnd: chunk.lineEnd,
+            focusArea,
+            promptVersion: prompt.promptVersion,
+            provider: response.provider,
+            model: response.model,
+            summary: extractSummary(payload),
+            findings,
+            usage: response.usage,
+            rawResponseId: response.id,
+          };
 
-        chunkResults.push(chunkResult);
+          chunkResults.push(chunkResult);
 
-        if (hooks.onChunkResult !== undefined) {
-          await hooks.onChunkResult(chunkResult);
+          if (hooks.onChunkResult !== undefined) {
+            await hooks.onChunkResult(chunkResult);
+          }
         }
       }
-    }
 
-    if (hooks.onStateChange !== undefined) {
-      await hooks.onStateChange('summarizing');
-    }
+      if (hooks.onStateChange !== undefined) {
+        await hooks.onStateChange('summarizing');
+      }
 
-    const aggregation = aggregateReviewResults(chunkResults);
+      const aggregation = aggregateReviewResults(chunkResults);
 
-    return {
-      status: 'completed',
-      chunkCount: chunks.length,
-      focusAreaCount: focusAreas.length,
-      generatedAt: new Date().toISOString(),
-      ...aggregation,
-    };
+      return {
+        status: 'completed',
+        chunkCount: chunks.length,
+        focusAreaCount: focusAreas.length,
+        generatedAt: new Date().toISOString(),
+        ...aggregation,
+      };
+    });
   }
 }

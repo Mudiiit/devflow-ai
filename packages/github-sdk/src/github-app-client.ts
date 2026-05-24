@@ -1,5 +1,7 @@
 import { createPrivateKey, createSign } from 'node:crypto';
 import type { GitHubAppCredentials, GitHubInstallationAccessToken } from './types.js';
+import { SpanKind } from '@opentelemetry/api';
+import { injectTraceHeaders, runWithSpan } from '@devflow/tracing';
 
 interface GitHubAppTokenResponse {
   readonly token: string;
@@ -36,20 +38,27 @@ export class GitHubAppClient {
   public constructor(private readonly credentials: GitHubAppCredentials) {}
 
   public async createInstallationAccessToken(installationId: number): Promise<GitHubInstallationAccessToken> {
-    const response = await fetch(`${this.apiBase}/app/installations/${installationId}/access_tokens`, {
-      method: 'POST',
-      headers: this.buildHeaders({ authorization: `Bearer ${createJwt(this.credentials.appId, this.credentials.privateKey)}` }),
+    return runWithSpan('github.app.create_installation_token', {
+      kind: SpanKind.CLIENT,
+      attributes: {
+        'github.installation.id': installationId,
+      },
+    }, async () => {
+      const response = await fetch(`${this.apiBase}/app/installations/${installationId}/access_tokens`, {
+        method: 'POST',
+        headers: injectTraceHeaders(this.buildHeaders({ authorization: `Bearer ${createJwt(this.credentials.appId, this.credentials.privateKey)}` })),
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub installation token request failed with status ${response.status}`);
+      }
+
+      const body = (await response.json()) as GitHubAppTokenResponse;
+      return {
+        token: body.token,
+        expiresAt: body.expires_at,
+      };
     });
-
-    if (!response.ok) {
-      throw new Error(`GitHub installation token request failed with status ${response.status}`);
-    }
-
-    const body = (await response.json()) as GitHubAppTokenResponse;
-    return {
-      token: body.token,
-      expiresAt: body.expires_at,
-    };
   }
 
   private buildHeaders(extra: Readonly<Record<string, string>> = {}): Record<string, string> {

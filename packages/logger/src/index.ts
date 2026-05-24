@@ -11,3 +11,13 @@ export { HealthController } from './health.controller.js';
 export { ObservabilityModule } from './observability.module.js';
 export { OBSERVABILITY_OPTIONS } from './observability.tokens.js';
 export type { ObservabilityModuleOptions, ObservabilityRequestContext, ObservabilityMetricLabels } from './types.js';
+export {
+	createTraceCarrier,
+	extractTraceContext,
+	getCurrentTraceSnapshot,
+	injectTraceHeaders,
+	initializeTracing,
+	runWithSpan,
+	shutdownTracing,
+	startSpan,
+} from '@devflow/tracing';
