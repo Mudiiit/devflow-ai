@@ -17,6 +17,7 @@
     "allowSyntheticDefaultImports": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "isolatedModules": true,
     "moduleDetection": "force",
     "verbatimModuleSyntax": true
