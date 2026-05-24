@@ -29,12 +29,12 @@ export default function ReviewHistoryPage() {
             <Link
               key={review.id}
               href={`/reviews/${review.id}`}
-              className="flex flex-col gap-3 rounded-2xl border border-[color:var(--app-border)] px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-4 rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel)]/55 px-4 py-4 transition hover:-translate-y-px hover:bg-[color:var(--app-panel-strong)]/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
             >
-              <div>
+              <div className="min-w-0">
                 <div className="text-sm font-semibold text-[color:var(--app-fg)]">{review.repo}</div>
                 <div className="text-xs text-[color:var(--app-muted)]">{review.id}</div>
-                <div className="mt-2 max-w-60">
+                <div className="mt-3 max-w-72">
                   <div className="mb-1 flex items-center justify-between text-[11px] text-[color:var(--app-muted)]">
                     <span>Risk</span>
                     <span>{review.risk}</span>
