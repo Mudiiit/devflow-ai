@@ -12,22 +12,32 @@
     "dev:web": "turbo run web:dev --filter=web",
     "dev:api": "turbo run api:dev --filter=api",
     "dev:worker": "turbo run worker:dev --filter=worker",
+
+    "start": "pnpm dev:api",
+
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
+
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
     "test:e2e": "turbo run test:e2e",
     "test:playwright": "playwright test",
+
     "format": "turbo run format",
+
     "clean": "turbo run clean && pnpm exec rimraf .turbo node_modules **/dist **/.next **/coverage",
+
     "db:generate": "turbo run db:generate",
     "db:migrate": "turbo run db:migrate",
-    "verify:deployment": "node infra/scripts/verify-deployment.js",
-    "validate:env": "node infra/scripts/validate-env.js",
     "db:push": "turbo run db:push",
     "db:seed": "turbo run db:seed",
+
     "migrate:prod": "pnpm --filter @devflow/database migrate:prod",
+
+    "verify:deployment": "node infra/scripts/verify-deployment.js",
+    "validate:env": "node infra/scripts/validate-env.js",
+
     "prepare": "husky || true"
   },
   "devDependencies": {
