@@ -3,6 +3,23 @@ import { Card, SectionTitle, Sparkline, Badge } from "@/components/ui";
 export default function AnalyticsPage() {
   return (
     <div className="flex flex-col gap-6">
+      <Card>
+        <SectionTitle title="Operations story" subtitle="Demo-ready signals" />
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          {[
+            { label: "Fastest review path", value: "8m 12s", meta: "Median from PR open to publish" },
+            { label: "Risk reduction", value: "-23%", meta: "Critical findings over the last week" },
+            { label: "Follow-up rate", value: "91%", meta: "Owners acknowledged findings" },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4 transition hover:bg-[color:var(--app-panel-strong)]/25">
+              <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">{item.label}</div>
+              <div className="mt-2 text-2xl font-semibold text-[color:var(--app-fg)]">{item.value}</div>
+              <div className="mt-1 text-xs text-[color:var(--app-muted)]">{item.meta}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="glass-panel px-4 py-4">
           <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Review SLA</div>
@@ -78,6 +95,22 @@ export default function AnalyticsPage() {
               <div className="text-xs text-[color:var(--app-muted)]">{item.reviews} reviews supported</div>
             </div>
           ))}
+        </div>
+      </Card>
+
+      <Card>
+        <SectionTitle title="Retention and alert quality" subtitle="Production observability" />
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Audit retention</div>
+            <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">90 days with searchable review context</div>
+            <div className="mt-2 text-sm text-[color:var(--app-muted)]">Ideal for compliance review, incident response, and demo storytelling.</div>
+          </div>
+          <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-[color:var(--app-muted)]">Alert quality</div>
+            <div className="mt-2 text-sm font-semibold text-[color:var(--app-fg)]">Fewer false positives, faster acknowledgment</div>
+            <div className="mt-2 text-sm text-[color:var(--app-muted)]">Tune thresholds to keep signal high without overwhelming teams.</div>
+          </div>
         </div>
       </Card>
     </div>

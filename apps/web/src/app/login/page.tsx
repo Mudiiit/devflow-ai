@@ -13,7 +13,7 @@ export default function LoginPage() {
             Welcome back
           </h1>
           <p className="mt-2 text-sm text-[color:var(--app-muted)]">
-            Sign in with GitHub to manage reviews, risk signals, and AI governance.
+            Sign in with GitHub to manage reviews, risk signals, and AI governance from one control center.
           </p>
 
           <div className="mt-5 space-y-3">
@@ -34,7 +34,7 @@ export default function LoginPage() {
 
         <div className="order-1 flex flex-col gap-4 lg:order-2">
           <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/40 px-4 py-3 text-xs text-[color:var(--app-muted)]">
-            Onboarding is usually under 2 minutes.
+            Onboarding is usually under 2 minutes and includes repo sync, team access, and notification setup.
           </div>
           <Link
             href={`${apiBase}/auth/github/login`}
@@ -44,6 +44,9 @@ export default function LoginPage() {
           </Link>
           <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 text-xs text-[color:var(--app-muted)]">
             By continuing you agree to the DevFlow AI terms and the GitHub OAuth authorization flow.
+          </div>
+          <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 text-xs text-[color:var(--app-muted)]">
+            Trusted by security, platform, and developer experience teams for fast demo-ready review workflows.
           </div>
         </div>
       </div>
