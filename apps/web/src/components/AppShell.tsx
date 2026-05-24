@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   { href: "/dashboard", label: "Overview" },
+  { href: "/dashboard/jobs", label: "Job Monitor" },
   { href: "/repositories", label: "Repositories" },
   { href: "/pull-requests", label: "Pull Requests" },
   { href: "/reviews", label: "Review History" },
@@ -39,7 +40,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
           <nav className="flex flex-col gap-2">
             {navItems.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+              const active =
+                pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
               return (
                 <Link
                   key={item.href}

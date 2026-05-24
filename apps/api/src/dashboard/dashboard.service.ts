@@ -12,13 +12,17 @@ import {
   sql,
   type DatabaseClient,
 } from '@devflow/database';
+import { ReviewJobsRepository, type ReviewJobMonitoringSnapshot } from '@devflow/database';
 import { DATABASE_CLIENT } from '../database/database.constants.js';
 
 const toDateKey = (value: Date): string => value.toISOString().slice(0, 10);
 
 @Injectable()
 export class DashboardService {
-  constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseClient) {}
+  constructor(
+    @Inject(DATABASE_CLIENT) private readonly db: DatabaseClient,
+    private readonly reviewJobsRepository: ReviewJobsRepository,
+  ) {}
 
   async getOverview(organizationId: string, window = '14d') {
     const windowDays = window === '30d' ? 30 : 14;
@@ -192,6 +196,10 @@ export class DashboardService {
       .limit(100);
 
     return { reviews: rows };
+  }
+
+  async getJobMonitoring(organizationId: string, limit = 25): Promise<ReviewJobMonitoringSnapshot> {
+    return this.reviewJobsRepository.findMonitoringSnapshot(organizationId, limit);
   }
 
   async getReviewDetail(organizationId: string, reviewJobId: string) {

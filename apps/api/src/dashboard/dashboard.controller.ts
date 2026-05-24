@@ -30,6 +30,18 @@ export class DashboardController {
     return this.dashboardService.getReviewHistory(organization.id);
   }
 
+  @Get('jobs')
+  async getJobMonitoring(
+    @CurrentOrganization() organization: { id: string },
+    @Query('limit') limit: string | undefined,
+  ) {
+    const parsedLimit = limit === undefined ? 25 : Number(limit);
+    return this.dashboardService.getJobMonitoring(
+      organization.id,
+      Number.isFinite(parsedLimit) ? parsedLimit : 25,
+    );
+  }
+
   @Get('reviews/:reviewJobId')
   async getReviewDetail(
     @CurrentOrganization() organization: { id: string },
