@@ -1,9 +1,24 @@
-import { clientEnv } from "@devflow/config";
+const fallbackApiBase = "http://localhost:4000";
 
-const apiBase = clientEnv.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+function resolveApiBase(): string {
+  const configuredBase = process.env.NEXT_PUBLIC_API_URL;
+  if (configuredBase && configuredBase.length > 0) {
+    return configuredBase;
+  }
+
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return fallbackApiBase;
+}
+
+export function getApiBase(): string {
+  return resolveApiBase();
+}
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, {
+  const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
     credentials: "include",
     headers: {
