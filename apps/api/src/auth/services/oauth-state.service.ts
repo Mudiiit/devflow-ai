@@ -9,20 +9,60 @@ import { resolveFrontendOrigin } from '../../common/public-origin.js';
 export class OauthStateService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseClient) {}
 
+  private async runWithTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+      }
+    }
+  }
+
   async createState(returnTo?: string): Promise<{ state: string }> {
     console.info('[api] oauth state generation started');
     const state = createRandomToken(32);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + AUTH_OAUTH_STATE_TTL_SECONDS * 1000);
+    const persistedReturnTo = returnTo ?? resolveFrontendOrigin();
+    const startedAt = Date.now();
 
-    console.info('[api] oauth state persistence started');
-    await this.db.insert(oauthStates).values({
+    const query = this.db.insert(oauthStates).values({
       provider: 'github',
       stateHash: sha256Hex(state),
-      returnTo: returnTo ?? resolveFrontendOrigin(),
+      returnTo: persistedReturnTo,
       expiresAt,
     });
-    console.info('[api] oauth state persistence completed');
+    const sql = query.toSQL();
+
+    console.info('[api] oauth state persistence started', {
+      sql: sql.sql,
+      paramsCount: sql.params.length,
+      hasReturnTo: persistedReturnTo !== undefined,
+    });
+
+    try {
+      await this.runWithTimeout(query, 3000, 'oauth state insert');
+      console.info('[api] oauth state persistence completed', {
+        durationMs: Date.now() - startedAt,
+      });
+    } catch (error) {
+      console.warn('[api] oauth state persistence failed', {
+        durationMs: Date.now() - startedAt,
+        message: error instanceof Error ? error.message : String(error),
+      });
+
+      throw error;
+    }
 
     return { state };
   }
