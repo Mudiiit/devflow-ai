@@ -2,7 +2,9 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
-if (!process.env.NEXTAUTH_SECRET) {
+const authSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+
+if (!authSecret) {
   console.warn('[web][nextauth][middleware] NEXTAUTH_SECRET is missing; token decoding may fail and all users will appear unauthenticated');
 }
 
@@ -22,23 +24,17 @@ function isProtectedPath(pathname: string): boolean {
 
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  const isSecureRequest = request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret: authSecret,
+    secureCookie: isSecureRequest,
   });
   const isAuthenticated = Boolean(token);
   const protectedRoute = isProtectedPath(pathname);
 
-  console.info(
-    '[web][nextauth][middleware] path=%s isProtected=%s isAuthenticated=%s',
-    pathname,
-    protectedRoute,
-    isAuthenticated,
-  );
-
   if (pathname === '/login' && isAuthenticated) {
     const dashboardUrl = new URL('/dashboard', request.url);
-    console.info('[web][nextauth][middleware] redirecting authenticated user from /login to %s', dashboardUrl.toString());
     return NextResponse.redirect(dashboardUrl);
   }
 
@@ -47,7 +43,6 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = `${pathname}${request.nextUrl.search}`;
 
     loginUrl.searchParams.set('callbackUrl', callbackUrl);
-    console.info('[web][nextauth][middleware] redirecting unauthenticated request to %s', loginUrl.toString());
     return NextResponse.redirect(loginUrl);
   }
 

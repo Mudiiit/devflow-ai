@@ -37,21 +37,14 @@ export const authOptions: NextAuthOptions = {
     strategy: 'jwt',
   },
   callbacks: {
-    async signIn({ user, account, profile }) {
-      const githubLogin =
-        profile && typeof profile === 'object' && 'login' in profile
-          ? String((profile as { login?: string }).login ?? '')
-          : null;
-
-      console.info('[web][nextauth][signIn] user=%s provider=%s githubLogin=%s', user?.email ?? user?.name ?? 'unknown', account?.provider ?? 'unknown', githubLogin ?? 'unknown');
+    async signIn() {
       return true;
     },
-    async jwt({ token, user, account, trigger }) {
+    async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
       }
 
-      console.info('[web][nextauth][jwt] trigger=%s provider=%s sub=%s hasToken=%s', trigger ?? 'unknown', account?.provider ?? 'none', token.sub ?? 'none', Boolean(token));
       return token;
     },
     async session({ session, token }) {
@@ -59,7 +52,6 @@ export const authOptions: NextAuthOptions = {
         (session.user as { id?: string }).id = token.sub;
       }
 
-      console.info('[web][nextauth][session] user=%s sub=%s expires=%s', session.user?.email ?? session.user?.name ?? 'unknown', token.sub ?? 'none', session.expires ?? 'none');
       return session;
     },
     async redirect({ url, baseUrl }) {
@@ -82,7 +74,6 @@ export const authOptions: NextAuthOptions = {
         destination = `${baseUrl}/dashboard`;
       }
 
-      console.info('[web][nextauth][redirect] url=%s baseUrl=%s destination=%s', url, baseUrl, destination);
       return destination;
     },
   },
