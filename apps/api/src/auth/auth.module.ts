@@ -1,4 +1,4 @@
-import { Module, type NestModule, type MiddlewareConsumer } from '@nestjs/common';
+import { Global, Module, type NestModule, type MiddlewareConsumer } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
 import { OrganizationsModule } from '../organizations/organizations.module.js';
 import { AuthController } from './controllers/auth.controller.js';
@@ -27,6 +27,7 @@ import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { GitHubOAuthStrategy } from './strategies/github-oauth.strategy.js';
 import { GitHubAppStrategy } from './strategies/github-app.strategy.js';
 
+@Global()
 @Module({
   imports: [DatabaseModule, OrganizationsModule],
   controllers: [AuthController, ApiKeysController, GithubController, WebhooksController],

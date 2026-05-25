@@ -1,8 +1,8 @@
 import { Module, OnApplicationShutdown } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ObservabilityModule } from '@devflow/logger';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { DATABASE_CLIENT } from './database/database.constants.js';
 import { AuthModule } from './auth/auth.module.js';

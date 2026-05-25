@@ -3,7 +3,7 @@ import { raw } from 'express';
 import { serverEnv } from '@devflow/config';
 import { StructuredLoggerService } from '@devflow/logger';
 import { initializeTracing } from '@devflow/tracing';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 import {
   antiAbuseMiddleware,
   createRateLimitMiddleware,

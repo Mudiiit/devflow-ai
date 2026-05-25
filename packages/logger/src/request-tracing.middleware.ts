@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import type { NestMiddleware } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { context as otelContext, SpanKind, SpanStatusCode } from '@opentelemetry/api';
@@ -6,6 +6,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { createTraceCarrier, extractTraceContext, getCurrentTraceSnapshot, startSpan } from '@devflow/tracing';
 import { AuditLogService } from './audit-log.service.js';
 import { MetricsService } from './metrics.service.js';
+import { OBSERVABILITY_OPTIONS } from './observability.tokens.js';
 import { RequestContextService } from './request-context.service.js';
 import { StructuredLoggerService } from './structured-logger.service.js';
 import type { ObservabilityModuleOptions, ObservabilityRequestContext } from './types.js';
@@ -51,6 +52,7 @@ const isObservabilityRoute = (path: string): boolean => {
 @Injectable()
 export class RequestTracingMiddleware implements NestMiddleware {
   constructor(
+    @Inject(OBSERVABILITY_OPTIONS)
     private readonly options: ObservabilityModuleOptions,
     private readonly requestContextService: RequestContextService,
     private readonly logger: StructuredLoggerService,

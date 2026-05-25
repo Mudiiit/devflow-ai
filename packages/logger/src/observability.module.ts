@@ -1,7 +1,8 @@
-import { Module, RequestMethod } from '@nestjs/common';
+import { Global, Module, RequestMethod } from '@nestjs/common';
 import type { DynamicModule, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import type { DatabaseClient } from '@devflow/database';
+import { AuditLogsRepository, createDatabaseClient } from '@devflow/database';
 import { initializeTracing } from '@devflow/tracing';
 import { HealthController } from './health.controller.js';
 import { HealthService } from './health.service.js';
@@ -16,6 +17,9 @@ import { RequestTracingMiddleware } from './request-tracing.middleware.js';
 import { StructuredLoggerService } from './structured-logger.service.js';
 import type { ObservabilityModuleOptions } from './types.js';
 
+const OBSERVABILITY_DATABASE_CLIENT = Symbol('OBSERVABILITY_DATABASE_CLIENT');
+
+@Global()
 @Module({
   controllers: [HealthController, MetricsController],
   providers: [RequestContextService, MetricsService, AuditLogService, ProcessErrorHooksService, RequestTracingMiddleware],
@@ -47,13 +51,26 @@ export class ObservabilityModule implements NestModule {
         },
         {
           provide: HealthService,
-          inject: [OBSERVABILITY_OPTIONS, options.databaseClientToken, MetricsService],
+          inject: [OBSERVABILITY_OPTIONS, OBSERVABILITY_DATABASE_CLIENT, MetricsService],
           useFactory: (
             observabilityOptions: ObservabilityModuleOptions,
             databaseClient: DatabaseClient,
             metricsService: MetricsService,
           ) => {
             return new HealthService(observabilityOptions, databaseClient, metricsService);
+          },
+        },
+        {
+          provide: OBSERVABILITY_DATABASE_CLIENT,
+          useFactory: () => {
+            return createDatabaseClient();
+          },
+        },
+        {
+          provide: AuditLogsRepository,
+          inject: [OBSERVABILITY_DATABASE_CLIENT],
+          useFactory: (databaseClient: DatabaseClient) => {
+            return new AuditLogsRepository(databaseClient);
           },
         },
         {
