@@ -10,16 +10,19 @@ export class OauthStateService {
   constructor(@Inject(DATABASE_CLIENT) private readonly db: DatabaseClient) {}
 
   async createState(returnTo?: string): Promise<{ state: string }> {
+    console.info('[api] oauth state generation started');
     const state = createRandomToken(32);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + AUTH_OAUTH_STATE_TTL_SECONDS * 1000);
 
+    console.info('[api] oauth state persistence started');
     await this.db.insert(oauthStates).values({
       provider: 'github',
       stateHash: sha256Hex(state),
       returnTo: returnTo ?? resolveFrontendOrigin(),
       expiresAt,
     });
+    console.info('[api] oauth state persistence completed');
 
     return { state };
   }

@@ -34,13 +34,19 @@ export class AuthController {
   async login(@Query('returnTo') returnTo: string | undefined, @Res() response: Response): Promise<void> {
     try {
       console.info('[api] oauth login started');
-      const { state } = await this.oauthStateService.createState(returnTo);
+      console.info('[api] oauth login creating state');
+      const { state } = await this.withTimeout(this.oauthStateService.createState(returnTo), 5000, 'oauth state creation');
+      console.info('[api] oauth login state created');
+
+      console.info('[api] oauth login building GitHub authorization url');
       const url = this.githubOAuthStrategy.buildAuthorizationUrl(state, returnTo);
       console.info('[api] oauth login redirecting to GitHub');
       response.redirect(url.toString());
+      return;
     } catch (error) {
       console.warn('[api] oauth login failed: %s', error instanceof Error ? error.message : String(error));
-      response.status(500).json({ message: 'GitHub login is temporarily unavailable' });
+      response.status(error instanceof Error && error.message.includes('timed out') ? 504 : 500).json({ message: 'GitHub login is temporarily unavailable' });
+      return;
     }
   }
 
@@ -198,5 +204,38 @@ export class AuthController {
 
   private isSecureCookiesEnabled(): boolean {
     return isSecureFrontendOrigin();
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+    let timeoutHandle: NodeJS.Timeout | undefined;
+    let timedOut = false;
+
+    try {
+      const guardedPromise = promise.then(
+        (value) => value,
+        (error) => {
+          if (timedOut) {
+            console.warn('[api] %s rejected after timeout: %s', label, error instanceof Error ? error.message : String(error));
+            return undefined as T;
+          }
+
+          throw error;
+        },
+      );
+
+      return await Promise.race([
+        guardedPromise,
+        new Promise<T>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            timedOut = true;
+            reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
   }
 }
