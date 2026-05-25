@@ -1,8 +1,11 @@
 import Link from "next/link";
-import { clientEnv } from "@devflow/config";
 
 export default function LoginPage() {
-  const apiBase = clientEnv.NEXT_PUBLIC_API_URL ?? "";
+  const apiBase = process.env.NEXT_PUBLIC_API_URL;
+
+  if (!apiBase || apiBase.length === 0) {
+    throw new Error("NEXT_PUBLIC_API_URL is required for the login page");
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 sm:py-12">

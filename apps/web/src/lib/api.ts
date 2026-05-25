@@ -1,16 +1,11 @@
-const fallbackApiBase = "http://localhost:4000";
-
 function resolveApiBase(): string {
   const configuredBase = process.env.NEXT_PUBLIC_API_URL;
-  if (configuredBase && configuredBase.length > 0) {
-    return configuredBase;
+
+  if (!configuredBase || configuredBase.length === 0) {
+    throw new Error("NEXT_PUBLIC_API_URL is required to call the API");
   }
 
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return window.location.origin;
-  }
-
-  return fallbackApiBase;
+  return configuredBase.replace(/\/$/, "");
 }
 
 export function getApiBase(): string {
