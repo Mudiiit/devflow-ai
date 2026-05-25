@@ -24,7 +24,12 @@ export class OauthStateService {
     return { state };
   }
 
-  async consumeState(state: string): Promise<string | null> {
+  async consumeState(state: string | null | undefined): Promise<string | null> {
+    if (typeof state !== 'string' || state.trim().length === 0) {
+      console.warn('[api] OAuth callback missing or invalid state');
+      return null;
+    }
+
     const stateHash = sha256Hex(state);
     const rows = await this.db
       .select()

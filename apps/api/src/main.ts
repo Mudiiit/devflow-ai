@@ -34,6 +34,7 @@ async function bootstrap() {
 
     console.info('[api] app bootstrap started');
     const app = await NestFactory.create(AppModule);
+    (app as unknown as { set: (setting: string, value: number) => void }).set('trust proxy', 1);
     app.useLogger(app.get(StructuredLoggerService, { strict: false }));
     app.enableShutdownHooks();
 

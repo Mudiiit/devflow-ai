@@ -1,3 +1,5 @@
+import { isSecureFrontendOrigin } from '../common/public-origin.js';
+
 export const AUTH_ACCESS_TOKEN_COOKIE = 'devflow_access_token';
 export const AUTH_REFRESH_TOKEN_COOKIE = 'devflow_refresh_token';
 export const AUTH_CSRF_COOKIE = 'devflow_csrf_token';
@@ -12,4 +14,7 @@ export const AUTH_REFRESH_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 export const AUTH_OAUTH_STATE_TTL_SECONDS = 10 * 60;
 
 export const AUTH_COOKIE_PATH = '/';
-export const AUTH_COOKIE_SAME_SITE = 'lax' as const;
+
+export const resolveAuthCookieSameSite = (): 'lax' | 'none' => {
+  return isSecureFrontendOrigin() ? 'none' : 'lax';
+};

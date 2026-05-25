@@ -2,7 +2,7 @@ import { Controller, Get, Inject, Post, Query, Req, Res, UseGuards, UseIntercept
 import type { Response, Request } from 'express';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
 import type { DatabaseClient } from '@devflow/database';
-import { AUTH_ACCESS_TOKEN_COOKIE, AUTH_CSRF_COOKIE, AUTH_COOKIE_PATH, AUTH_COOKIE_SAME_SITE, AUTH_REFRESH_TOKEN_COOKIE } from '../auth.constants.js';
+import { AUTH_ACCESS_TOKEN_COOKIE, AUTH_CSRF_COOKIE, AUTH_COOKIE_PATH, AUTH_REFRESH_TOKEN_COOKIE, resolveAuthCookieSameSite } from '../auth.constants.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { RateLimit } from '../decorators/rate-limit.decorator.js';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard.js';
@@ -32,9 +32,16 @@ export class AuthController {
   @UseGuards(RateLimitGuard)
   @RateLimit({ limit: 10, windowMs: 60_000 })
   async login(@Query('returnTo') returnTo: string | undefined, @Res() response: Response): Promise<void> {
-    const { state } = await this.oauthStateService.createState(returnTo);
-    const url = this.githubOAuthStrategy.buildAuthorizationUrl(state, returnTo);
-    response.redirect(url.toString());
+    try {
+      console.info('[api] oauth login started');
+      const { state } = await this.oauthStateService.createState(returnTo);
+      const url = this.githubOAuthStrategy.buildAuthorizationUrl(state, returnTo);
+      console.info('[api] oauth login redirecting to GitHub');
+      response.redirect(url.toString());
+    } catch (error) {
+      console.warn('[api] oauth login failed: %s', error instanceof Error ? error.message : String(error));
+      response.status(500).json({ message: 'GitHub login is temporarily unavailable' });
+    }
   }
 
   @Get('github/callback')
@@ -42,39 +49,52 @@ export class AuthController {
   @RateLimit({ limit: 20, windowMs: 60_000 })
   async callback(
     @Query('code') code: string,
-    @Query('state') state: string,
+    @Query('state') state: string | undefined,
     @Res() response: Response,
     @Req() request: Request,
   ): Promise<void> {
-    const returnTo = (await this.oauthStateService.consumeState(state)) ?? resolveFrontendOrigin();
-    const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
-    const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
-    const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
-    await this.organizationService.ensurePersonalOrganizationForUser({
-      userId: dbUser.id,
-      githubLogin: dbUser.githubLogin,
-      displayName: dbUser.displayName,
-    });
-    const session = await this.sessionService.issueSession(
-      {
-        id: dbUser.id,
-        email: dbUser.email,
-        githubUserId: Number(dbUser.githubUserId),
+    if (!code || !state) {
+      console.warn('[api] oauth callback missing code or state');
+      response.status(400).json({ message: 'Missing GitHub OAuth code or state' });
+      return;
+    }
+
+    try {
+      console.info('[api] oauth callback started');
+      const returnTo = (await this.oauthStateService.consumeState(state)) ?? resolveFrontendOrigin();
+      const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
+      const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
+      const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
+      await this.organizationService.ensurePersonalOrganizationForUser({
+        userId: dbUser.id,
         githubLogin: dbUser.githubLogin,
         displayName: dbUser.displayName,
-        fullName: dbUser.fullName,
-        avatarUrl: dbUser.avatarUrl,
-        role: dbUser.role,
-        status: dbUser.status,
-      },
-      {
-        ipAddress: request.ip,
-        userAgent: request.headers['user-agent'] ?? null,
-      },
-    );
+      });
+      const session = await this.sessionService.issueSession(
+        {
+          id: dbUser.id,
+          email: dbUser.email,
+          githubUserId: Number(dbUser.githubUserId),
+          githubLogin: dbUser.githubLogin,
+          displayName: dbUser.displayName,
+          fullName: dbUser.fullName,
+          avatarUrl: dbUser.avatarUrl,
+          role: dbUser.role,
+          status: dbUser.status,
+        },
+        {
+          ipAddress: request.ip,
+          userAgent: request.headers['user-agent'] ?? null,
+        },
+      );
 
-    this.setAuthCookies(response, session.accessToken, session.refreshToken, session.csrfToken);
-    response.redirect(returnTo);
+      this.setAuthCookies(response, session.accessToken, session.refreshToken, session.csrfToken);
+      console.info('[api] oauth callback completed');
+      response.redirect(returnTo);
+    } catch (error) {
+      console.warn('[api] oauth callback failed: %s', error instanceof Error ? error.message : String(error));
+      response.status(500).json({ message: 'GitHub OAuth callback failed' });
+    }
   }
 
   @Get('session')
@@ -139,7 +159,7 @@ export class AuthController {
     const cookieBase = {
       httpOnly: true,
       secure: this.isSecureCookiesEnabled(),
-      sameSite: AUTH_COOKIE_SAME_SITE,
+      sameSite: resolveAuthCookieSameSite(),
       path: AUTH_COOKIE_PATH,
     } as const;
 
@@ -153,7 +173,7 @@ export class AuthController {
     });
     response.cookie(AUTH_CSRF_COOKIE, csrfToken, {
       secure: this.isSecureCookiesEnabled(),
-      sameSite: AUTH_COOKIE_SAME_SITE,
+      sameSite: resolveAuthCookieSameSite(),
       path: AUTH_COOKIE_PATH,
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
