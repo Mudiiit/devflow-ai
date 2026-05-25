@@ -36,6 +36,8 @@ The production compose stack exposes:
 
 - [.github/workflows/ci.yml](../.github/workflows/ci.yml) installs dependencies and runs `pnpm build`.
 - [.github/workflows/deploy.yml](../.github/workflows/deploy.yml) builds and publishes Docker images for `api`, `web`, and `worker` to GHCR.
+- [docs/deployment/render.md](./deployment/render.md) covers the Render API blueprint and required environment variables.
+- [docs/deployment/vercel.md](./deployment/vercel.md) covers the Vercel frontend deployment and environment variables.
 
 ## Runtime checks
 

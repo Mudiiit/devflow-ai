@@ -27,6 +27,7 @@ import {
   type BillingUsageEntry,
 } from '@devflow/billing';
 import { DatabaseBillingProvider } from './billing.provider.js';
+import { resolveFrontendOrigin } from '../common/public-origin.js';
 
 type BillingUsageResponse = {
   readonly plan: BillingPlanSnapshot;
@@ -309,7 +310,7 @@ export class BillingService {
   }
 
   private resolveAppUrl(): string {
-    return process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    return resolveFrontendOrigin();
   }
 
   private toSubscriptionSummary(subscription: Subscription, plan: PlanLike): BillingSubscriptionSummary {

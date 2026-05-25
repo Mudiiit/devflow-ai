@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { serverEnv } from '@devflow/config';
 import { and, eq, gt, isNull, oauthStates, type DatabaseClient } from '@devflow/database';
 import { AUTH_OAUTH_STATE_TTL_SECONDS } from '../auth.constants.js';
 import { createRandomToken, sha256Hex } from '../utils/crypto.js';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
+import { resolveFrontendOrigin } from '../../common/public-origin.js';
 
 @Injectable()
 export class OauthStateService {
@@ -17,7 +17,7 @@ export class OauthStateService {
     await this.db.insert(oauthStates).values({
       provider: 'github',
       stateHash: sha256Hex(state),
-      returnTo: returnTo ?? serverEnv.NEXTAUTH_URL ?? '/',
+      returnTo: returnTo ?? resolveFrontendOrigin(),
       expiresAt,
     });
 

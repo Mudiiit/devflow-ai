@@ -4,6 +4,7 @@ import { serverEnv } from '@devflow/config';
 import { StructuredLoggerService } from '@devflow/logger';
 import { initializeTracing } from '@devflow/tracing';
 import { AppModule } from './app.module.js';
+import { resolveFrontendOrigin } from './common/public-origin.js';
 import {
   antiAbuseMiddleware,
   createRateLimitMiddleware,
@@ -28,7 +29,7 @@ async function bootstrap() {
     app.useLogger(app.get(StructuredLoggerService, { strict: false }));
     app.enableShutdownHooks();
     app.enableCors({
-      origin: [serverEnv.NEXTAUTH_URL ?? 'http://localhost:3000'],
+      origin: [resolveFrontendOrigin()],
       credentials: true,
     });
     app.use('/webhooks/github', raw({ type: '*/*' }));

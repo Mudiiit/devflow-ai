@@ -11,6 +11,7 @@ import {
   type PricingPlan,
   type Subscription,
 } from '@devflow/database';
+import { resolveFrontendOrigin } from '../common/public-origin.js';
 import {
   defaultBillingPlans,
   type BillingCadence,
@@ -279,14 +280,16 @@ export class DatabaseBillingProvider implements BillingProvider {
       const cadence = event.payload.cadence === 'annual' ? 'annual' : 'monthly';
 
       if (organizationId && planCode) {
+        const origin = resolveFrontendOrigin();
+
         await this.changeSubscription({
           organizationId,
           customer: null,
           subscription: null,
           planCode,
           cadence,
-          successUrl: 'http://localhost:3000/settings/billing',
-          cancelUrl: 'http://localhost:3000/settings/billing',
+          successUrl: `${origin}/settings/billing`,
+          cancelUrl: `${origin}/settings/billing`,
         });
       }
     }

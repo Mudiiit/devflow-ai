@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: devflow-ai-api
+    env: node
+    rootDir: .
+    plan: starter
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter api build
+    startCommand: pnpm --filter api start:prod
+    healthCheckPath: /health/ready
+    autoDeploy: true

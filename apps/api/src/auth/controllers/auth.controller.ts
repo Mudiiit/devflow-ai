@@ -1,6 +1,5 @@
 import { Controller, Get, Inject, Post, Query, Req, Res, UseGuards, UseInterceptors } from '@nestjs/common';
 import type { Response, Request } from 'express';
-import { serverEnv } from '@devflow/config';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
 import type { DatabaseClient } from '@devflow/database';
 import { AUTH_ACCESS_TOKEN_COOKIE, AUTH_CSRF_COOKIE, AUTH_COOKIE_PATH, AUTH_COOKIE_SAME_SITE, AUTH_REFRESH_TOKEN_COOKIE } from '../auth.constants.js';
@@ -15,6 +14,7 @@ import { OauthStateService } from '../services/oauth-state.service.js';
 import { SessionService } from '../services/session.service.js';
 import { GitHubOAuthService } from '../services/github-oauth.service.js';
 import { OrganizationService } from '../../organizations/organizations.service.js';
+import { isSecureFrontendOrigin, resolveFrontendOrigin } from '../../common/public-origin.js';
 
 @Controller('auth')
 @UseInterceptors(AuthSessionInterceptor)
@@ -46,7 +46,7 @@ export class AuthController {
     @Res() response: Response,
     @Req() request: Request,
   ): Promise<void> {
-    const returnTo = (await this.oauthStateService.consumeState(state)) ?? serverEnv.NEXTAUTH_URL ?? '/';
+    const returnTo = (await this.oauthStateService.consumeState(state)) ?? resolveFrontendOrigin();
     const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
     const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
     const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
@@ -177,6 +177,6 @@ export class AuthController {
   }
 
   private isSecureCookiesEnabled(): boolean {
-    return (serverEnv.NEXTAUTH_URL ?? 'http://localhost:3000').startsWith('https://');
+    return isSecureFrontendOrigin();
   }
 }

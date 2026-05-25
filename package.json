@@ -14,8 +14,13 @@
     "dev:worker": "turbo run worker:dev --filter=worker",
 
     "start": "pnpm dev:api",
+    "start:api": "pnpm --filter api start:prod",
+    "start:web": "pnpm --filter web start",
 
     "build": "turbo run build",
+    "build:api": "pnpm --filter api build",
+    "build:web": "pnpm --filter web build",
+    "build:worker": "pnpm --filter worker build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
 

@@ -3,10 +3,11 @@ import { serverEnv } from '@devflow/config';
 import { eq, users, type DatabaseClient } from '@devflow/database';
 import { normalizePrivateKey } from '../utils/crypto.js';
 import type { GitHubOAuthProfile } from '../auth.types.js';
+import { resolveApiOrigin } from '../../common/public-origin.js';
 
 @Injectable()
 export class GitHubOAuthService {
-  private readonly callbackUrl = `${serverEnv.NEXTAUTH_URL ?? 'http://localhost:3000'}/auth/github/callback`;
+  private readonly callbackUrl = `${resolveApiOrigin()}/auth/github/callback`;
 
   buildAuthorizationUrl(state: string, returnTo?: string): URL {
     if (!serverEnv.GITHUB_CLIENT_ID) {
