@@ -4,27 +4,47 @@ import { createRedisConnection, isRedisConnectionEnabled, reviewJobQueueDefaults
 
 @Injectable()
 export class ReviewQueueService implements OnApplicationShutdown {
-  private readonly queue: Queue<ReviewQueueJobData> | null;
-  private readonly connection: any | null;
-  private readonly enabled: boolean;
+  private queue: Queue<ReviewQueueJobData> | null = null;
+  private connection: any | null = null;
+  private enabled = false;
 
   constructor() {
-    this.enabled = isRedisConnectionEnabled(serverEnv.REDIS_URL);
-    this.connection = this.enabled ? createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-review-queue') : null;
-    this.queue = this.enabled
-      ? new Queue<ReviewQueueJobData>(reviewJobQueueName, {
-          connection: this.connection,
-          defaultJobOptions: {
-            attempts: serverEnv.REVIEW_QUEUE_ATTEMPTS ?? reviewJobQueueDefaults.attempts,
-            backoff: {
-              type: 'exponential',
-              delay: serverEnv.REVIEW_QUEUE_BACKOFF_MS ?? reviewJobQueueDefaults.backoffMs,
-            },
-            removeOnComplete: true,
-            removeOnFail: false,
+    if (!isRedisConnectionEnabled(serverEnv.REDIS_URL)) {
+      console.warn('Redis unavailable, continuing without queues');
+      console.warn('Workers disabled');
+      return;
+    }
+
+    try {
+      this.connection = createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-review-queue');
+      if (this.connection && typeof this.connection.on === 'function') {
+        this.connection.on('error', (error: unknown) => {
+          console.warn('[api] review queue redis error: %s', error instanceof Error ? error.message : String(error));
+        });
+      }
+
+      this.queue = new Queue<ReviewQueueJobData>(reviewJobQueueName, {
+        connection: this.connection,
+        defaultJobOptions: {
+          attempts: serverEnv.REVIEW_QUEUE_ATTEMPTS ?? reviewJobQueueDefaults.attempts,
+          backoff: {
+            type: 'exponential',
+            delay: serverEnv.REVIEW_QUEUE_BACKOFF_MS ?? reviewJobQueueDefaults.backoffMs,
           },
-        })
-      : null;
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      });
+
+      this.enabled = true;
+    } catch (error) {
+      this.enabled = false;
+      this.queue = null;
+      this.connection = null;
+      console.warn('Redis unavailable, continuing without queues');
+      console.warn('Workers disabled');
+      console.warn('[api] review queue initialization failed: %s', error instanceof Error ? error.message : String(error));
+    }
   }
 
   isEnabled(): boolean {
@@ -47,18 +67,30 @@ export class ReviewQueueService implements OnApplicationShutdown {
       removeOnFail: false,
     };
 
-    await this.queue.add(reviewJobQueueJobName, { reviewJobId, ...payload }, jobOptions);
-    return true;
+    try {
+      await this.queue.add(reviewJobQueueJobName, { reviewJobId, ...payload }, jobOptions);
+      return true;
+    } catch (error) {
+      console.warn('[api] review queue enqueue failed, continuing without queue delivery: %s', error instanceof Error ? error.message : String(error));
+      return false;
+    }
   }
 
   async onApplicationShutdown(): Promise<void> {
-    if (this.queue === null) {
-      return;
+    try {
+      if (this.queue !== null) {
+        await this.queue.close();
+      }
+    } catch (error) {
+      console.warn('[api] review queue shutdown warning: %s', error instanceof Error ? error.message : String(error));
     }
 
-    await this.queue.close();
-    if (this.connection !== null) {
-      await this.connection.quit();
+    try {
+      if (this.connection !== null) {
+        await this.connection.quit();
+      }
+    } catch (error) {
+      console.warn('[api] review queue redis shutdown warning: %s', error instanceof Error ? error.message : String(error));
     }
   }
 }

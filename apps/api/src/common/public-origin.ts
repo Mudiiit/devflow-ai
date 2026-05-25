@@ -9,10 +9,6 @@ export function resolveFrontendOrigin(): string {
     return configuredOrigin.replace(/\/$/, '');
   }
 
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('NEXTAUTH_URL or NEXT_PUBLIC_APP_URL is required in production');
-  }
-
   return localFrontendOrigin;
 }
 
@@ -21,10 +17,6 @@ export function resolveApiOrigin(): string {
 
   if (configuredOrigin && configuredOrigin.length > 0) {
     return configuredOrigin.replace(/\/$/, '');
-  }
-
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('RENDER_EXTERNAL_URL, API_PUBLIC_URL, or NEXT_PUBLIC_API_URL is required in production');
   }
 
   const port = process.env.PORT ?? '4000';

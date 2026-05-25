@@ -33,7 +33,11 @@ export class ObservabilityModule implements NestModule {
       ...(process.env.OTEL_EXPORTER_OTLP_ENDPOINT === undefined ? {} : { otlpEndpoint: process.env.OTEL_EXPORTER_OTLP_ENDPOINT }),
     };
 
-    void initializeTracing(tracingOptions);
+    try {
+      void initializeTracing(tracingOptions);
+    } catch (error) {
+      console.warn('[observability] tracing initialization failed, continuing without telemetry: %s', error instanceof Error ? error.message : String(error));
+    }
 
     return {
       module: ObservabilityModule,

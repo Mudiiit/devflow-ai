@@ -87,9 +87,21 @@ export const createRateLimitMiddleware = (): ((request: Request, response: Respo
   const windowMs = serverEnv.API_RATE_LIMIT_WINDOW_MS;
   const maxRequests = serverEnv.API_RATE_LIMIT_MAX_REQUESTS;
   const buckets = new Map<string, RateLimitBucket>();
-  const redis = isRedisConnectionEnabled(serverEnv.REDIS_URL)
-    ? createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-rate-limit')
-    : null;
+  let redis: any | null = null;
+
+  if (isRedisConnectionEnabled(serverEnv.REDIS_URL)) {
+    try {
+      redis = createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-rate-limit');
+      if (redis && typeof redis.on === 'function') {
+        redis.on('error', (error: unknown) => {
+          console.warn('[api] rate limiter redis error, using in-memory limiter: %s', error instanceof Error ? error.message : String(error));
+        });
+      }
+    } catch (error) {
+      redis = null;
+      console.warn('[api] rate limiter redis initialization failed, using in-memory limiter: %s', error instanceof Error ? error.message : String(error));
+    }
+  }
 
   // expose redis instance for process-module shutdown hooks to close connection
   try {
