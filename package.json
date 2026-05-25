@@ -18,7 +18,7 @@
     "start:web": "pnpm --filter web start",
 
     "build": "turbo run build",
-    "build:api": "pnpm --filter api build",
+    "build:api": "pnpm --filter api... build",
     "build:web": "pnpm --filter web build",
     "build:worker": "pnpm --filter worker build",
     "lint": "turbo run lint",
