@@ -1,12 +1,6 @@
-import Link from "next/link";
+import { GithubSignInButton } from "./GithubSignInButton";
 
 export default function LoginPage() {
-  const apiBase = process.env.NEXT_PUBLIC_API_URL;
-
-  if (!apiBase || apiBase.length === 0) {
-    throw new Error("NEXT_PUBLIC_API_URL is required for the login page");
-  }
-
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="glass-panel flex w-full max-w-3xl flex-col gap-8 px-6 py-6 sm:px-8 sm:py-8 lg:grid lg:grid-cols-[1.1fr_0.9fr] lg:gap-10">
@@ -39,12 +33,7 @@ export default function LoginPage() {
           <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/40 px-4 py-3 text-xs text-[color:var(--app-muted)]">
             Onboarding is usually under 2 minutes and includes repo sync, team access, and notification setup.
           </div>
-          <Link
-            href={`${apiBase}/auth/github/login`}
-            className="rounded-full bg-[color:var(--app-accent)] px-5 py-3 text-center text-sm font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
-          >
-            Continue with GitHub
-          </Link>
+          <GithubSignInButton />
           <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 text-xs text-[color:var(--app-muted)]">
             By continuing you agree to the DevFlow AI terms and the GitHub OAuth authorization flow.
           </div>

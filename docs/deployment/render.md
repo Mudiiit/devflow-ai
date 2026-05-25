@@ -78,14 +78,14 @@ The API reads `process.env.PORT` at runtime, so Render should assign the port au
 
 ## GitHub OAuth settings
 
-The GitHub OAuth callback route lives on the API service, not the frontend.
+The GitHub OAuth callback route for user login is handled by NextAuth on the frontend.
 
-Use this callback URL in your GitHub App / OAuth app configuration:
+Use this callback URL in your GitHub OAuth app configuration:
 
-- Production: `https://<your-render-api-domain>/auth/github/callback`
-- Local development: `http://127.0.0.1:4000/auth/github/callback`
+- Production: `https://devflow-ai-web.vercel.app/api/auth/callback/github`
+- Local development: `http://localhost:3000/api/auth/callback/github`
 
-The frontend login button should point to the deployed API `/auth/github/login` endpoint.
+The frontend login button should trigger NextAuth sign-in (`signIn('github')`), not the API `/auth/github/login` endpoint.
 
 ---
 

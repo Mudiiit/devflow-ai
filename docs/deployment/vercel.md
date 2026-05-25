@@ -37,6 +37,9 @@ Common variables used across apps. Only set the ones relevant to the service bei
   - `NEXT_PUBLIC_API_URL` — full URL to your deployed API (e.g., `https://api.devflow.example.com`)
   - `NEXT_PUBLIC_APP_URL` — public web URL (e.g., `https://app.devflow.example.com`)
   - `NEXTAUTH_URL` — same public web URL; keep it aligned with the frontend origin used by the API for OAuth callbacks and redirects
+  - `NEXTAUTH_SECRET` — >= 32 chars for NextAuth session and callback integrity
+  - `GITHUB_CLIENT_ID` — GitHub OAuth app client id used by NextAuth GitHub provider
+  - `GITHUB_CLIENT_SECRET` — GitHub OAuth app client secret used by NextAuth GitHub provider
   - `NEXT_PUBLIC_APP_NAME` — display name used in meta/UI
 
 - For `apps/api` (server; deploy off-Vercel):
