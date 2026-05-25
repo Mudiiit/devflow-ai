@@ -22,19 +22,58 @@ function isProtectedPath(pathname: string): boolean {
   return protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+function isSecureRequest(request: NextRequest): boolean {
+  const forwardedProto = request.headers.get('x-forwarded-proto');
+  return request.nextUrl.protocol === 'https:' || forwardedProto === 'https' || Boolean(process.env.VERCEL);
+}
+
+function getCookieNames(request: NextRequest): string[] {
+  return request.cookies.getAll().map((cookie) => cookie.name);
+}
+
 export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
-  const isSecureRequest = request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
-  const token = await getToken({
-    req: request,
-    secret: authSecret,
-    secureCookie: isSecureRequest,
-  });
+  const secureRequest = isSecureRequest(request);
+  const cookieNames = getCookieNames(request);
+  const sessionCookieNames = secureRequest
+    ? ['__Secure-next-auth.session-token', 'next-auth.session-token']
+    : ['next-auth.session-token', '__Secure-next-auth.session-token'];
+
+  console.info(
+    '[web][nextauth][middleware] pathname=%s secureRequest=%s cookies=%s',
+    pathname,
+    secureRequest,
+    cookieNames.join(','),
+  );
+
+  let token = null;
+
+  for (const cookieName of sessionCookieNames) {
+    token = await getToken({
+      req: request,
+      secret: authSecret,
+      secureCookie: secureRequest,
+      cookieName,
+    });
+
+    if (token) {
+      break;
+    }
+  }
+
   const isAuthenticated = Boolean(token);
   const protectedRoute = isProtectedPath(pathname);
 
+  console.info(
+    '[web][nextauth][middleware] tokenExists=%s protectedRoute=%s tokenSub=%s',
+    isAuthenticated,
+    protectedRoute,
+    token?.sub ?? 'none',
+  );
+
   if (pathname === '/login' && isAuthenticated) {
     const dashboardUrl = new URL('/dashboard', request.url);
+    console.info('[web][nextauth][middleware] redirectDestination=%s', dashboardUrl.toString());
     return NextResponse.redirect(dashboardUrl);
   }
 
@@ -43,6 +82,7 @@ export async function middleware(request: NextRequest) {
     const callbackUrl = `${pathname}${request.nextUrl.search}`;
 
     loginUrl.searchParams.set('callbackUrl', callbackUrl);
+    console.info('[web][nextauth][middleware] redirectDestination=%s', loginUrl.toString());
     return NextResponse.redirect(loginUrl);
   }
 
