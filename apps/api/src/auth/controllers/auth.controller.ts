@@ -33,18 +33,11 @@ export class AuthController {
   @RateLimit({ limit: 10, windowMs: 60_000 })
   async login(@Query('returnTo') returnTo: string | undefined, @Res() response: Response): Promise<void> {
     try {
-      console.info('[api] oauth login started');
-      console.info('[api] oauth login creating state');
       const { state } = await this.withTimeout(this.oauthStateService.createState(returnTo), 5000, 'oauth state creation');
-      console.info('[api] oauth login state created');
-
-      console.info('[api] oauth login building GitHub authorization url');
       const url = this.githubOAuthStrategy.buildAuthorizationUrl(state, returnTo);
-      console.info('[api] oauth login redirecting to GitHub');
       response.redirect(url.toString());
       return;
     } catch (error) {
-      console.warn('[api] oauth login failed: %s', error instanceof Error ? error.message : String(error));
       response.status(error instanceof Error && error.message.includes('timed out') ? 504 : 500).json({ message: 'GitHub login is temporarily unavailable' });
       return;
     }
@@ -60,13 +53,11 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<void> {
     if (!code || !state) {
-      console.warn('[api] oauth callback missing code or state');
       response.status(400).json({ message: 'Missing GitHub OAuth code or state' });
       return;
     }
 
     try {
-      console.info('[api] oauth callback started');
       const returnTo = (await this.oauthStateService.consumeState(state)) ?? resolveFrontendOrigin();
       const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
       const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
@@ -95,10 +86,8 @@ export class AuthController {
       );
 
       this.setAuthCookies(response, session.accessToken, session.refreshToken, session.csrfToken);
-      console.info('[api] oauth callback completed');
       response.redirect(returnTo);
     } catch (error) {
-      console.warn('[api] oauth callback failed: %s', error instanceof Error ? error.message : String(error));
       response.status(500).json({ message: 'GitHub OAuth callback failed' });
     }
   }

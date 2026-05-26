@@ -29,47 +29,23 @@ export class OauthStateService {
   }
 
   async createState(returnTo?: string): Promise<{ state: string }> {
-    console.info('[api] oauth state generation started');
     const state = createRandomToken(32);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + AUTH_OAUTH_STATE_TTL_SECONDS * 1000);
     const persistedReturnTo = returnTo ?? resolveFrontendOrigin();
-    const startedAt = Date.now();
 
-    const query = this.db.insert(oauthStates).values({
+    await this.runWithTimeout(this.db.insert(oauthStates).values({
       provider: 'github',
       stateHash: sha256Hex(state),
       returnTo: persistedReturnTo,
       expiresAt,
-    });
-    const sql = query.toSQL();
-
-    console.info('[api] oauth state persistence started', {
-      sql: sql.sql,
-      paramsCount: sql.params.length,
-      hasReturnTo: persistedReturnTo !== undefined,
-    });
-
-    try {
-      await this.runWithTimeout(query, 3000, 'oauth state insert');
-      console.info('[api] oauth state persistence completed', {
-        durationMs: Date.now() - startedAt,
-      });
-    } catch (error) {
-      console.warn('[api] oauth state persistence failed', {
-        durationMs: Date.now() - startedAt,
-        message: error instanceof Error ? error.message : String(error),
-      });
-
-      throw error;
-    }
+    }), 3000, 'oauth state insert');
 
     return { state };
   }
 
   async consumeState(state: string | null | undefined): Promise<string | null> {
     if (typeof state !== 'string' || state.trim().length === 0) {
-      console.warn('[api] OAuth callback missing or invalid state');
       return null;
     }
 

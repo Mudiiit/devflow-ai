@@ -16,15 +16,21 @@ const providers = githubClientId && githubClientSecret
   : [];
 
 if (providers.length === 0) {
-  console.warn('[web] NextAuth GitHub provider is disabled because GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET are missing');
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[web] NextAuth GitHub provider is disabled because GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET are missing');
+  }
 }
 
 if (!nextAuthSecret) {
-  console.warn('[web] NEXTAUTH_SECRET is not set; session tokens may not be stable across restarts/deploys');
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[web] NEXTAUTH_SECRET is not set; session tokens may not be stable across restarts/deploys');
+  }
 }
 
 if (!nextAuthUrl) {
-  console.warn('[web] NEXTAUTH_URL is not set; callback/cookie behavior may be inconsistent outside Vercel managed host detection');
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn('[web] NEXTAUTH_URL is not set; callback/cookie behavior may be inconsistent outside Vercel managed host detection');
+  }
 }
 
 export const authOptions: NextAuthOptions = {
