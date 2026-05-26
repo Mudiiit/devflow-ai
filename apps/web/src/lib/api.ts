@@ -12,14 +12,24 @@ export function getApiBase(): string {
   return resolveApiBase();
 }
 
-export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
+type ApiRequestOptions = RequestInit & {
+  readonly cookieHeader?: string;
+};
+
+async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> {
+  const headers = new Headers(init?.headers);
+
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (init?.cookieHeader) {
+    headers.set("Cookie", init.cookieHeader);
+  }
+
   const response = await fetch(`${resolveApiBase()}${path}`, {
     ...init,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: "no-store",
   });
 
@@ -29,4 +39,18 @@ export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> 
   }
 
   return (await response.json()) as T;
+}
+
+export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
+  return fetchJson<T>(path, {
+    ...init,
+    credentials: "include",
+  });
+}
+
+export async function fetchServerApi<T>(path: string, cookieHeader?: string, init?: RequestInit): Promise<T> {
+  return fetchJson<T>(path, {
+    ...init,
+    cookieHeader,
+  });
 }
