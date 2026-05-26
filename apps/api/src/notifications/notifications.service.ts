@@ -1,6 +1,7 @@
 import { Injectable, type MessageEvent } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { NotificationsRepository, type Notification } from '@devflow/database';
+import { StructuredLoggerService } from '@devflow/logger';
 
 type NotificationSummary = Notification & {
   readonly unread: boolean;
@@ -15,6 +16,7 @@ type InboxResult = {
 export class NotificationsService {
   constructor(
     private readonly notificationsRepository: NotificationsRepository,
+    private readonly logger: StructuredLoggerService,
   ) {}
 
   async getInbox(userId: string, limit = 50): Promise<InboxResult> {
@@ -74,6 +76,11 @@ export class NotificationsService {
       let closed = false;
       let cursor: Date | null = null;
       let pollTimer: NodeJS.Timeout | null = null;
+
+      this.logger.event('info', 'notifications.stream.started', {
+        userId,
+        hasLastEventId: Boolean(lastEventId),
+      });
 
       const emitNotification = (notification: Notification): void => {
         subscriber.next({
@@ -136,6 +143,13 @@ export class NotificationsService {
                 cursor = nextCursor;
               })
               .catch((error: unknown) => {
+                this.logger.event(
+                  'error',
+                  'notifications.stream.poll_failed',
+                  { userId, cursor: cursor?.toISOString() ?? null },
+                  error instanceof Error ? error : undefined,
+                );
+
                 if (!closed) {
                   subscriber.error(
                     error instanceof Error
@@ -146,6 +160,13 @@ export class NotificationsService {
               });
           }, 5_000);
         } catch (error: unknown) {
+          this.logger.event(
+            'error',
+            'notifications.stream.initialization_failed',
+            { userId, hasLastEventId: Boolean(lastEventId) },
+            error instanceof Error ? error : undefined,
+          );
+
           subscriber.error(
             error instanceof Error
               ? error
@@ -161,6 +182,7 @@ export class NotificationsService {
         if (pollTimer !== null) {
           clearInterval(pollTimer);
         }
+        this.logger.event('info', 'notifications.stream.closed', { userId });
       };
     });
   }

@@ -11,6 +11,7 @@ import {
   type ReviewJob,
 } from '@devflow/database';
 import { RequestContextService } from '@devflow/logger';
+import { StructuredLoggerService } from '@devflow/logger';
 import { createTraceCarrier } from '@devflow/tracing';
 import { GitHubAppService } from './github-app.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
@@ -42,6 +43,7 @@ export class RepositorySyncService {
     private readonly organizationService: OrganizationService,
     private readonly requestContextService: RequestContextService,
     private readonly reviewQueueService: ReviewQueueService,
+    private readonly logger: StructuredLoggerService,
   ) {}
 
   async listInstallationsForUser(
@@ -89,6 +91,11 @@ export class RepositorySyncService {
     if (!installation) {
       throw new Error(`GitHub installation ${installationId} not found`);
     }
+
+    this.logger.event('info', 'github.installation.sync.started', {
+      installationId,
+      githubAccountLogin: installation.githubAccountLogin,
+    });
 
     const githubRepositories =
       await this.githubAppService.listInstallationRepositories(installationId);
@@ -143,6 +150,11 @@ export class RepositorySyncService {
     if (!installation) {
       throw new Error(`GitHub installation ${installationId} not found`);
     }
+
+    this.logger.event('info', 'github.repository.connect.started', {
+      installationId,
+      githubRepositoryId,
+    });
 
     const githubRepositories =
       await this.githubAppService.listInstallationRepositories(installationId);

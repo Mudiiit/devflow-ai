@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Card, SectionTitle, SkeletonBlock } from "@/components/ui";
-import { buildApiUrl, fetchApi } from "@/lib/api";
+import { buildApiUrl, fetchApi, isApiError } from "@/lib/api";
 
 type NotificationType =
   | "review_completed"
@@ -150,6 +150,33 @@ export default function NotificationsInboxPage() {
   useEffect(() => {
     let cancelled = false;
     let eventSource: EventSource | null = null;
+    let fallbackPollTimer: number | null = null;
+
+    const startPollingFallback = () => {
+      if (fallbackPollTimer !== null) {
+        return;
+      }
+
+      fallbackPollTimer = window.setInterval(() => {
+        void hydrateInbox().catch((pollError: unknown) => {
+          console.error("notifications.poll.failed", pollError);
+          if (!cancelled) {
+            setError(
+              isApiError(pollError)
+                ? `Unable to load notifications (${pollError.status}).`
+                : "Unable to load notifications.",
+            );
+          }
+        });
+      }, 15000);
+    };
+
+    const stopPollingFallback = () => {
+      if (fallbackPollTimer !== null) {
+        window.clearInterval(fallbackPollTimer);
+        fallbackPollTimer = null;
+      }
+    };
 
     async function loadAndSubscribe() {
       try {
@@ -185,6 +212,7 @@ export default function NotificationsInboxPage() {
           setIsStreamConnected(false);
           if (!cancelled) {
             setError((previous) => previous ?? "Temporary server issue.");
+            startPollingFallback();
           }
         };
 
@@ -192,11 +220,18 @@ export default function NotificationsInboxPage() {
           setIsStreamConnected(true);
           if (!cancelled) {
             setError(null);
+            stopPollingFallback();
           }
         };
-      } catch (loadError) {
+      } catch (loadError: unknown) {
+        console.error("notifications.load.failed", loadError);
         if (!cancelled) {
-          setError("Unable to load notifications.");
+          setError(
+            isApiError(loadError)
+              ? `Unable to load notifications (${loadError.status}).`
+              : "Unable to load notifications.",
+          );
+          startPollingFallback();
         }
       } finally {
         if (!cancelled) {
@@ -212,6 +247,7 @@ export default function NotificationsInboxPage() {
       if (eventSource) {
         eventSource.close();
       }
+      stopPollingFallback();
     };
   }, [hydrateInbox]);
 
@@ -239,11 +275,13 @@ export default function NotificationsInboxPage() {
     try {
       await fetchApi<unknown>(`/notifications/${notificationId}/read`, { method: "POST" });
       setError(null);
-    } catch {
+    } catch (readError: unknown) {
+      console.error("notifications.read.failed", readError);
       setError("Unable to update notification state.");
       try {
         await hydrateInbox();
-      } catch {
+      } catch (refreshError: unknown) {
+        console.error("notifications.refresh.failed", refreshError);
         // Keep optimistic state if reload fails.
       }
     }
@@ -265,7 +303,8 @@ export default function NotificationsInboxPage() {
     try {
       await fetchApi<unknown>("/notifications/read-all", { method: "POST" });
       setError(null);
-    } catch {
+    } catch (markAllError: unknown) {
+      console.error("notifications.readAll.failed", markAllError);
       setInbox(snapshot);
       setError("Unable to update notification state.");
     } finally {

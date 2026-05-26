@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Badge, Card, SectionTitle } from "@/components/ui";
+import { isApiError } from "@/lib/api";
 import { getGitHubInstallationUrl, getRepositoryOverview, type RepositoryOverviewItem } from "@/lib/github-integration";
 
 export const dynamic = "force-dynamic";
@@ -51,15 +52,38 @@ export default async function RepositoriesPage() {
   let errorMessage: string | null = null;
 
   try {
-    const [overview, installUrl] = await Promise.all([
+    const [overviewResult, installUrlResult] = await Promise.allSettled([
       getRepositoryOverview(),
       getGitHubInstallationUrl("/repositories"),
     ]);
 
-    repositories = overview.repositories;
-    installationUrl = installUrl;
-  } catch {
-    errorMessage = "Unable to load repositories.";
+    if (overviewResult.status === "fulfilled") {
+      repositories = overviewResult.value.repositories;
+    } else {
+      console.error("repositories.overview.failed", overviewResult.reason);
+    }
+
+    if (installUrlResult.status === "fulfilled") {
+      installationUrl = installUrlResult.value;
+    } else {
+      console.error("repositories.installation-link.failed", installUrlResult.reason);
+    }
+
+    if (repositories.length === 0 && installationUrl === null) {
+      const failure = overviewResult.status === "rejected"
+        ? overviewResult.reason
+        : installUrlResult.status === "rejected"
+          ? installUrlResult.reason
+          : null;
+      errorMessage = isApiError(failure)
+        ? `Unable to load repositories (${failure.status}).`
+        : "Unable to load repositories.";
+    }
+  } catch (error: unknown) {
+    console.error("repositories.load.failed", error);
+    errorMessage = isApiError(error)
+      ? `Unable to load repositories (${error.status}).`
+      : "Unable to load repositories.";
   }
 
   const avgHealth = repositories.length > 0

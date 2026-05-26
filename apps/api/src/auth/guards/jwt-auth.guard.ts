@@ -1,10 +1,11 @@
 import {
   CanActivate,
   ExecutionContext,
-  Inject,
   Injectable,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Request } from 'express';
+import { StructuredLoggerService } from '@devflow/logger';
 import {
   AUTH_ACCESS_TOKEN_COOKIE,
   AUTH_BEARER_PREFIX,
@@ -13,7 +14,10 @@ import { SessionService } from '../services/session.service.js';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private readonly sessionService: SessionService) {}
+  constructor(
+    private readonly sessionService: SessionService,
+    private readonly logger: StructuredLoggerService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context
@@ -22,13 +26,27 @@ export class JwtAuthGuard implements CanActivate {
     const token = this.extractToken(request);
 
     if (!token) {
-      return false;
+      this.logger.event('warn', 'auth.session.missing', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        hasAuthorization: Boolean(request.headers.authorization),
+        hasCookieHeader: Boolean(request.headers.cookie),
+      });
+
+      throw new UnauthorizedException('Authentication required');
     }
 
     const session = await this.sessionService.authenticateAccessToken(token);
 
     if (!session) {
-      return false;
+      this.logger.event('warn', 'auth.session.invalid', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        hasAuthorization: Boolean(request.headers.authorization),
+        hasCookieHeader: Boolean(request.headers.cookie),
+      });
+
+      throw new UnauthorizedException('Invalid or expired session');
     }
 
     request.authSession = session;

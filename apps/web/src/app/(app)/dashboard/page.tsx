@@ -1,6 +1,7 @@
 import { Badge, Card, SectionTitle, Sparkline, StatCard } from "@/components/ui";
 import { formatNumber } from "@/lib/format";
 import { getRepositoryOverview, type RepositoryOverviewItem } from "@/lib/github-integration";
+import { isApiError } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -39,8 +40,11 @@ export default async function DashboardPage() {
 
   try {
     repositories = (await getRepositoryOverview()).repositories;
-  } catch {
-    errorMessage = "Unable to load dashboard data.";
+  } catch (error: unknown) {
+    console.error("dashboard.load.failed", error);
+    errorMessage = isApiError(error)
+      ? `Unable to load dashboard data (${error.status}).`
+      : "Unable to load dashboard data.";
   }
 
   const repositoryCount = repositories.length;

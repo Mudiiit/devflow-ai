@@ -1,5 +1,6 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
+import { StructuredLoggerService } from '@devflow/logger';
 import {
   OrganizationMembershipsRepository,
   OrganizationsRepository,
@@ -12,6 +13,7 @@ export class OrganizationMemberGuard implements CanActivate {
     private readonly organizationsRepository: OrganizationsRepository,
     private readonly organizationMembershipsRepository: OrganizationMembershipsRepository,
     private readonly organizationService: OrganizationService,
+    private readonly logger: StructuredLoggerService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -24,7 +26,12 @@ export class OrganizationMemberGuard implements CanActivate {
     const userId = request.authSession?.user?.id;
 
     if (!userId) {
-      return false;
+      this.logger.event('warn', 'organization.context.missing_user', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+      });
+
+      throw new UnauthorizedException('Authentication required');
     }
 
     const organizationId = this.readOrganizationId(request);
@@ -35,7 +42,13 @@ export class OrganizationMemberGuard implements CanActivate {
         );
 
       if (!defaultOrganization) {
-        return false;
+        this.logger.event('warn', 'organization.context.missing', {
+          path: request.originalUrl ?? request.url,
+          method: request.method,
+          userId,
+        });
+
+        throw new ForbiddenException('Active organization required');
       }
 
       request.orgContext = defaultOrganization;
@@ -45,7 +58,14 @@ export class OrganizationMemberGuard implements CanActivate {
     const organization =
       await this.organizationsRepository.findById(organizationId);
     if (!organization) {
-      return false;
+      this.logger.event('warn', 'organization.context.invalid', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        userId,
+        organizationId,
+      });
+
+      throw new ForbiddenException('Organization not found');
     }
 
     const membership =
@@ -54,7 +74,15 @@ export class OrganizationMemberGuard implements CanActivate {
         userId,
       );
     if (!membership || membership.status !== 'active') {
-      return false;
+      this.logger.event('warn', 'organization.membership.missing', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        userId,
+        organizationId,
+        membershipStatus: membership?.status ?? null,
+      });
+
+      throw new ForbiddenException('Organization access denied');
     }
 
     request.orgContext = {

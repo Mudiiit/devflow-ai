@@ -1,4 +1,5 @@
-import { Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { StructuredLoggerService } from '@devflow/logger';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { RateLimit } from '../decorators/rate-limit.decorator.js';
 import { RateLimitGuard } from '../guards/rate-limit.guard.js';
@@ -21,18 +22,32 @@ export class GithubController {
     private readonly githubAppStrategy: GitHubAppStrategy,
     private readonly repositorySyncService: RepositorySyncService,
     private readonly oauthStateService: OauthStateService,
+    private readonly logger: StructuredLoggerService,
   ) {}
 
   @Get('install')
   @UseGuards(JwtAuthGuard, RateLimitGuard)
   @RateLimit({ limit: 10, windowMs: 60_000 })
   async install(@Query('returnTo') returnTo: string | undefined) {
-    const { state } = await this.oauthStateService.createState(returnTo);
-    return {
-      installationUrl: this.githubAppStrategy
-        .buildInstallationUrl(state)
-        .toString(),
-    };
+    try {
+      const { state } = await this.oauthStateService.createState(returnTo);
+      return {
+        installationUrl: this.githubAppStrategy
+          .buildInstallationUrl(state)
+          .toString(),
+      };
+    } catch (error: unknown) {
+      this.logger.event(
+        'error',
+        'github.installation.url.failed',
+        { returnTo: returnTo ?? null },
+        error instanceof Error ? error : undefined,
+      );
+
+      throw new ServiceUnavailableException(
+        'GitHub installation setup is temporarily unavailable',
+      );
+    }
   }
 
   @Get('installations')

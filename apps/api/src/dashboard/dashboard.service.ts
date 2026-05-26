@@ -17,6 +17,7 @@ import {
   ReviewJobsRepository,
   type ReviewJobMonitoringSnapshot,
 } from '@devflow/database';
+import { StructuredLoggerService } from '@devflow/logger';
 import { DATABASE_CLIENT } from '../database/database.constants.js';
 import { CacheService } from '../security/services/cache.service.js';
 
@@ -28,6 +29,7 @@ export class DashboardService {
     @Inject(DATABASE_CLIENT) private readonly db: DatabaseClient,
     private readonly reviewJobsRepository: ReviewJobsRepository,
     private readonly cacheService: CacheService,
+    private readonly logger: StructuredLoggerService,
   ) {}
 
   async getOverview(organizationId: string, window = '14d') {
@@ -49,70 +51,102 @@ export class DashboardService {
     const windowDays = window === '30d' ? 30 : 14;
     const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
-    const [repoCountRow] = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(repositories)
-      .where(eq(repositories.organizationId, organizationId));
+    const [repoCountRows, openPrCountRows, reviewCountRows, tokenSumRows, reviewStatusRows, metricsRows] = await Promise.all([
+      this.safeDashboardQuery(
+        'overview.repository_count',
+        { organizationId, window },
+        [{ count: 0 }],
+        () => this.db
+          .select({ count: sql<number>`count(*)` })
+          .from(repositories)
+          .where(eq(repositories.organizationId, organizationId)),
+      ),
+      this.safeDashboardQuery(
+        'overview.open_pull_requests',
+        { organizationId, window },
+        [{ count: 0 }],
+        () => this.db
+          .select({ count: sql<number>`count(*)` })
+          .from(pullRequests)
+          .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
+          .where(
+            and(
+              eq(repositories.organizationId, organizationId),
+              eq(pullRequests.state, 'open'),
+            ),
+          ),
+      ),
+      this.safeDashboardQuery(
+        'overview.review_count',
+        { organizationId, window },
+        [{ count: 0 }],
+        () => this.db
+          .select({ count: sql<number>`count(*)` })
+          .from(reviewMetrics)
+          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+          .where(
+            and(
+              eq(repositories.organizationId, organizationId),
+              gte(reviewMetrics.createdAt, since),
+            ),
+          ),
+      ),
+      this.safeDashboardQuery(
+        'overview.token_sum',
+        { organizationId, window },
+        [{ total: 0 }],
+        () => this.db
+          .select({
+            total: sql<number>`coalesce(sum(${reviewMetrics.totalTokens}), 0)`,
+          })
+          .from(reviewMetrics)
+          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+          .where(
+            and(
+              eq(repositories.organizationId, organizationId),
+              gte(reviewMetrics.createdAt, since),
+            ),
+          ),
+      ),
+      this.safeDashboardQuery(
+        'overview.review_statuses',
+        { organizationId, window },
+        [],
+        () => this.db
+          .select({ status: reviewJobs.status, count: sql<number>`count(*)` })
+          .from(reviewJobs)
+          .innerJoin(repositories, eq(reviewJobs.repositoryId, repositories.id))
+          .where(eq(repositories.organizationId, organizationId))
+          .groupBy(reviewJobs.status),
+      ),
+      this.safeDashboardQuery(
+        'overview.metrics',
+        { organizationId, window },
+        [],
+        () => this.db
+          .select({
+            publishedAt: reviewMetrics.publishedAt,
+            riskScore: reviewMetrics.riskScore,
+            confidenceScore: reviewMetrics.confidenceScore,
+            severityCounts: reviewMetrics.severityCounts,
+          })
+          .from(reviewMetrics)
+          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+          .where(
+            and(
+              eq(repositories.organizationId, organizationId),
+              gte(reviewMetrics.createdAt, since),
+            ),
+          )
+          .orderBy(desc(reviewMetrics.createdAt))
+          .limit(120),
+      ),
+    ]);
 
-    const [openPrCountRow] = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(pullRequests)
-      .innerJoin(repositories, eq(pullRequests.repositoryId, repositories.id))
-      .where(
-        and(
-          eq(repositories.organizationId, organizationId),
-          eq(pullRequests.state, 'open'),
-        ),
-      );
-
-    const [reviewCountRow] = await this.db
-      .select({ count: sql<number>`count(*)` })
-      .from(reviewMetrics)
-      .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
-      .where(
-        and(
-          eq(repositories.organizationId, organizationId),
-          gte(reviewMetrics.createdAt, since),
-        ),
-      );
-
-    const [tokenSumRow] = await this.db
-      .select({
-        total: sql<number>`coalesce(sum(${reviewMetrics.totalTokens}), 0)`,
-      })
-      .from(reviewMetrics)
-      .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
-      .where(
-        and(
-          eq(repositories.organizationId, organizationId),
-          gte(reviewMetrics.createdAt, since),
-        ),
-      );
-
-    const reviewStatusRows = await this.db
-      .select({ status: reviewJobs.status, count: sql<number>`count(*)` })
-      .from(reviewJobs)
-      .innerJoin(repositories, eq(reviewJobs.repositoryId, repositories.id))
-      .where(eq(repositories.organizationId, organizationId))
-      .groupBy(reviewJobs.status);
-
-    const metricsRows = await this.db
-      .select({
-        publishedAt: reviewMetrics.publishedAt,
-        riskScore: reviewMetrics.riskScore,
-        confidenceScore: reviewMetrics.confidenceScore,
-        severityCounts: reviewMetrics.severityCounts,
-      })
-      .from(reviewMetrics)
-      .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
-      .where(
-        and(
-          eq(repositories.organizationId, organizationId),
-          gte(reviewMetrics.createdAt, since),
-        ),
-      )
-      .orderBy(desc(reviewMetrics.createdAt))
-      .limit(120);
+    const repoCountRow = repoCountRows[0] ?? { count: 0 };
+    const openPrCountRow = openPrCountRows[0] ?? { count: 0 };
+    const reviewCountRow = reviewCountRows[0] ?? { count: 0 };
+    const tokenSumRow = tokenSumRows[0] ?? { total: 0 };
 
     const trendMap = new Map<
       string,
@@ -151,10 +185,10 @@ export class DashboardService {
       .sort((left, right) => left.date.localeCompare(right.date));
 
     return {
-      repositories: repoCountRow?.count ?? 0,
-      openPullRequests: openPrCountRow?.count ?? 0,
-      reviews: reviewCountRow?.count ?? 0,
-      tokens: tokenSumRow?.total ?? 0,
+      repositories: repoCountRow.count ?? 0,
+      openPullRequests: openPrCountRow.count ?? 0,
+      reviews: reviewCountRow.count ?? 0,
+      tokens: tokenSumRow.total ?? 0,
       reviewQueue: reviewStatusRows,
       severityTotals,
       riskTrend,
@@ -162,28 +196,39 @@ export class DashboardService {
   }
 
   async getRepositoriesOverview(organizationId: string) {
-    const repoRows = await this.db
-      .select({
-        id: repositories.id,
-        name: repositories.name,
-        fullName: repositories.fullName,
-        syncState: repositories.syncState,
-        language: repositories.language,
-        lastSyncedAt: repositories.lastSyncedAt,
-      })
-      .from(repositories)
-      .where(eq(repositories.organizationId, organizationId));
-
-    const metricsRows = await this.db
-      .select({
-        repositoryId: reviewMetrics.repositoryId,
-        riskScore: reviewMetrics.riskScore,
-        confidenceScore: reviewMetrics.confidenceScore,
-        publishedAt: reviewMetrics.publishedAt,
-      })
-      .from(reviewMetrics)
-      .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
-      .where(eq(repositories.organizationId, organizationId));
+    const [repoRows, metricsRows] = await Promise.all([
+      this.safeDashboardQuery(
+        'repositories.list',
+        { organizationId },
+        [],
+        () => this.db
+          .select({
+            id: repositories.id,
+            name: repositories.name,
+            fullName: repositories.fullName,
+            syncState: repositories.syncState,
+            language: repositories.language,
+            lastSyncedAt: repositories.lastSyncedAt,
+          })
+          .from(repositories)
+          .where(eq(repositories.organizationId, organizationId)),
+      ),
+      this.safeDashboardQuery(
+        'repositories.metrics',
+        { organizationId },
+        [],
+        () => this.db
+          .select({
+            repositoryId: reviewMetrics.repositoryId,
+            riskScore: reviewMetrics.riskScore,
+            confidenceScore: reviewMetrics.confidenceScore,
+            publishedAt: reviewMetrics.publishedAt,
+          })
+          .from(reviewMetrics)
+          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+          .where(eq(repositories.organizationId, organizationId)),
+      ),
+    ]);
 
     const latestMetricByRepo = new Map<string, (typeof metricsRows)[number]>();
     for (const metric of metricsRows) {
@@ -210,6 +255,26 @@ export class DashboardService {
         };
       }),
     };
+  }
+
+  private async safeDashboardQuery<T>(
+    stage: string,
+    metadata: Record<string, unknown>,
+    fallback: T,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await run();
+    } catch (error: unknown) {
+      this.logger.event(
+        'error',
+        'dashboard.query.failed',
+        { stage, ...metadata },
+        error instanceof Error ? error : undefined,
+      );
+
+      return fallback;
+    }
   }
 
   async getPullRequestsOverview(organizationId: string) {

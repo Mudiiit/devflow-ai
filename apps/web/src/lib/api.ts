@@ -12,6 +12,34 @@ export function getApiBase(): string {
   return resolveApiBase();
 }
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly statusText: string;
+  readonly requestUrl: string;
+  readonly responseBody: unknown;
+
+  constructor(
+    message: string,
+    input: {
+      status: number;
+      statusText: string;
+      requestUrl: string;
+      responseBody: unknown;
+    },
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = input.status;
+    this.statusText = input.statusText;
+    this.requestUrl = input.requestUrl;
+    this.responseBody = input.responseBody;
+  }
+}
+
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
 type ApiRequestOptions = RequestInit & {
   readonly cookieHeader?: string;
   readonly skipOrganizationContext?: boolean;
@@ -31,7 +59,6 @@ const organizationContextCache = new Map<string, Promise<OrganizationContext | n
 
 const protectedApiPrefixes = [
   "/dashboard",
-  "/notifications",
   "/billing",
   "/repositories",
   "/pull-requests",
@@ -82,7 +109,16 @@ async function fetchOrganizationContext(
       });
 
       if (!response.ok) {
-        return null;
+        if (response.status === 401 || response.status === 403) {
+          return null;
+        }
+
+        throw new ApiError("Failed to resolve organization context", {
+          status: response.status,
+          statusText: response.statusText,
+          requestUrl: response.url,
+          responseBody: await readResponseBody(response),
+        });
       }
 
       const payload = (await response.json()) as DefaultOrganizationResponse;
@@ -97,7 +133,11 @@ async function fetchOrganizationContext(
         organizationId,
         workspaceId: organizationId,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+
       return null;
     }
   })();
@@ -175,7 +215,12 @@ async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> 
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new ApiError(`Request failed: ${response.status}`, {
+      status: response.status,
+      statusText: response.statusText,
+      requestUrl,
+      responseBody: await readResponseBody(response),
+    });
   }
 
   return (await response.json()) as T;
@@ -198,4 +243,18 @@ export async function fetchServerApi<T>(path: string, cookieHeader?: string, ini
 
 export async function buildApiUrl(path: string, init?: ApiRequestOptions): Promise<string> {
   return resolveRequestUrl(path, init);
+}
+
+async function readResponseBody(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  try {
+    if (contentType.includes("application/json")) {
+      return await response.json();
+    }
+
+    return await response.text();
+  } catch {
+    return null;
+  }
 }

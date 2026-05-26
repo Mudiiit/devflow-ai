@@ -1,6 +1,7 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
+import { StructuredLoggerService } from '@devflow/logger';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator.js';
 import {
   hasPermission,
@@ -17,7 +18,10 @@ type OrganizationContext = {
 
 @Injectable()
 export class OrganizationPermissionGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly logger: StructuredLoggerService,
+  ) {}
 
   canActivate(context: ExecutionContext): boolean {
     const requiredPermissions = this.reflector.getAllAndOverride<
@@ -34,11 +38,33 @@ export class OrganizationPermissionGuard implements CanActivate {
     const membership = request.orgContext?.membership;
 
     if (!membership || membership.status !== 'active' || !membership.role) {
-      return false;
+      this.logger.event('warn', 'organization.permission.missing', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        hasMembership: Boolean(membership),
+        membershipStatus: membership?.status ?? null,
+        role: membership?.role ?? null,
+        requiredPermissions,
+      });
+
+      throw new ForbiddenException('Organization permission required');
     }
 
-    return requiredPermissions.every((permission) =>
+    const allowed = requiredPermissions.every((permission) =>
       hasPermission(membership.role!, permission),
     );
+
+    if (!allowed) {
+      this.logger.event('warn', 'organization.permission.denied', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        role: membership.role,
+        requiredPermissions,
+      });
+
+      throw new ForbiddenException('Organization permission denied');
+    }
+
+    return true;
   }
 }

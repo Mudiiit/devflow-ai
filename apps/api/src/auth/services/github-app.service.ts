@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { serverEnv } from '@devflow/config';
+import { StructuredLoggerService } from '@devflow/logger';
 import { normalizePrivateKey, signGitHubAppJwt } from '../utils/crypto.js';
 
 @Injectable()
 export class GitHubAppService {
   private readonly apiBase = 'https://api.github.com';
+
+  constructor(private readonly logger: StructuredLoggerService) {}
 
   private get appId(): string {
     if (!serverEnv.GITHUB_APP_ID) {
@@ -60,6 +63,12 @@ export class GitHubAppService {
     );
 
     if (!response.ok) {
+      this.logger.event('error', 'github.installation.token.failed', {
+        installationId,
+        status: response.status,
+        statusText: response.statusText,
+      });
+
       throw new Error(
         `GitHub App token request failed with status ${response.status}`,
       );
@@ -95,6 +104,12 @@ export class GitHubAppService {
     });
 
     if (!response.ok) {
+      this.logger.event('error', 'github.installation.repositories.failed', {
+        installationId,
+        status: response.status,
+        statusText: response.statusText,
+      });
+
       throw new Error(
         `GitHub installation repository listing failed with status ${response.status}`,
       );
