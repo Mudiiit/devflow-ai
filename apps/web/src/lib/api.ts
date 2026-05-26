@@ -102,8 +102,16 @@ async function fetchOrganizationContext(
     }
   })();
 
-  organizationContextCache.set(cacheKey, contextPromise);
-  return contextPromise;
+  const cachedPromise = contextPromise.then((context) => {
+    if (!context) {
+      organizationContextCache.delete(cacheKey);
+    }
+
+    return context;
+  });
+
+  organizationContextCache.set(cacheKey, cachedPromise);
+  return cachedPromise;
 }
 
 async function resolveRequestHeaders(
@@ -135,10 +143,32 @@ async function resolveRequestHeaders(
   return headers;
 }
 
+async function resolveRequestUrl(
+  path: string,
+  init?: ApiRequestOptions,
+): Promise<string> {
+  const url = new URL(`${resolveApiBase()}${path}`);
+
+  if (!shouldAttachOrganizationContext(path) || init?.skipOrganizationContext) {
+    return url.toString();
+  }
+
+  const organizationContext = await fetchOrganizationContext(init);
+  if (!organizationContext) {
+    return url.toString();
+  }
+
+  url.searchParams.set("orgId", organizationContext.organizationId);
+  url.searchParams.set("organizationId", organizationContext.organizationId);
+  url.searchParams.set("workspaceId", organizationContext.workspaceId);
+  return url.toString();
+}
+
 async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> {
   const headers = await resolveRequestHeaders(path, init);
+  const requestUrl = await resolveRequestUrl(path, init);
 
-  const response = await fetch(`${resolveApiBase()}${path}`, {
+  const response = await fetch(requestUrl, {
     ...init,
     headers,
     cache: "no-store",
@@ -167,17 +197,5 @@ export async function fetchServerApi<T>(path: string, cookieHeader?: string, ini
 }
 
 export async function buildApiUrl(path: string, init?: ApiRequestOptions): Promise<string> {
-  if (!shouldAttachOrganizationContext(path) || init?.skipOrganizationContext) {
-    return `${resolveApiBase()}${path}`;
-  }
-
-  const organizationContext = await fetchOrganizationContext(init);
-  if (!organizationContext) {
-    return `${resolveApiBase()}${path}`;
-  }
-
-  const url = new URL(`${resolveApiBase()}${path}`);
-  url.searchParams.set("orgId", organizationContext.organizationId);
-  url.searchParams.set("workspaceId", organizationContext.workspaceId);
-  return url.toString();
+  return resolveRequestUrl(path, init);
 }

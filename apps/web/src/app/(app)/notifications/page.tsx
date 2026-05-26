@@ -144,6 +144,7 @@ export default function NotificationsInboxPage() {
       notifications: sortNotifications(data.notifications),
       unreadCount: data.unreadCount,
     });
+    setError(null);
   }, []);
 
   useEffect(() => {
