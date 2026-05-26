@@ -9,7 +9,9 @@ import { and, eq } from '@devflow/database';
 import { DATABASE_CLIENT } from '../database/database.constants.js';
 
 const asRecord = (value: unknown): Record<string, unknown> | undefined => {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : undefined;
+  return typeof value === 'object' && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
 };
 
 @Injectable()
@@ -26,7 +28,10 @@ export class SettingsService {
     return { settings: rows[0] ?? null };
   }
 
-  async updateOrganizationSettings(organizationId: string, payload: Record<string, unknown>) {
+  async updateOrganizationSettings(
+    organizationId: string,
+    payload: Record<string, unknown>,
+  ) {
     const patch = this.toOrganizationSettingsPatch(payload);
     const existing = await this.getOrganizationSettings(organizationId);
 
@@ -61,7 +66,10 @@ export class SettingsService {
         repository: repositories,
       })
       .from(repositorySettings)
-      .innerJoin(repositories, eq(repositorySettings.repositoryId, repositories.id))
+      .innerJoin(
+        repositories,
+        eq(repositorySettings.repositoryId, repositories.id),
+      )
       .where(eq(repositories.organizationId, organizationId));
 
     return {
@@ -72,12 +80,21 @@ export class SettingsService {
     };
   }
 
-  async updateRepositorySettings(organizationId: string, repositoryId: string, payload: Record<string, unknown>) {
+  async updateRepositorySettings(
+    organizationId: string,
+    repositoryId: string,
+    payload: Record<string, unknown>,
+  ) {
     const patch = this.toRepositorySettingsPatch(payload);
     const rows = await this.db
       .select()
       .from(repositories)
-      .where(and(eq(repositories.organizationId, organizationId), eq(repositories.id, repositoryId)))
+      .where(
+        and(
+          eq(repositories.organizationId, organizationId),
+          eq(repositories.id, repositoryId),
+        ),
+      )
       .limit(1);
 
     if (!rows[0]) {
@@ -115,24 +132,45 @@ export class SettingsService {
     return { settings: inserted[0] ?? null };
   }
 
-  private toOrganizationSettingsPatch(payload: Record<string, unknown>): Partial<typeof organizationSettings.$inferInsert> {
+  private toOrganizationSettingsPatch(
+    payload: Record<string, unknown>,
+  ): Partial<typeof organizationSettings.$inferInsert> {
     return {
-      aiProvider: typeof payload.aiProvider === 'string' ? payload.aiProvider : undefined,
-      aiModel: typeof payload.aiModel === 'string' ? payload.aiModel : undefined,
-      reviewStrictness: typeof payload.reviewStrictness === 'number' ? payload.reviewStrictness : undefined,
-      autoReviewEnabled: typeof payload.autoReviewEnabled === 'boolean' ? payload.autoReviewEnabled : undefined,
+      aiProvider:
+        typeof payload.aiProvider === 'string' ? payload.aiProvider : undefined,
+      aiModel:
+        typeof payload.aiModel === 'string' ? payload.aiModel : undefined,
+      reviewStrictness:
+        typeof payload.reviewStrictness === 'number'
+          ? payload.reviewStrictness
+          : undefined,
+      autoReviewEnabled:
+        typeof payload.autoReviewEnabled === 'boolean'
+          ? payload.autoReviewEnabled
+          : undefined,
       notificationPreferences: asRecord(payload.notificationPreferences),
       repositoryRules: asRecord(payload.repositoryRules),
       githubPreferences: asRecord(payload.githubPreferences),
-      securityContacts: typeof payload.securityContacts === 'string' ? payload.securityContacts : undefined,
+      securityContacts:
+        typeof payload.securityContacts === 'string'
+          ? payload.securityContacts
+          : undefined,
       metadata: asRecord(payload.metadata),
     };
   }
 
-  private toRepositorySettingsPatch(payload: Record<string, unknown>): Partial<typeof repositorySettings.$inferInsert> {
+  private toRepositorySettingsPatch(
+    payload: Record<string, unknown>,
+  ): Partial<typeof repositorySettings.$inferInsert> {
     return {
-      reviewStrictness: typeof payload.reviewStrictness === 'number' ? payload.reviewStrictness : undefined,
-      autoReviewEnabled: typeof payload.autoReviewEnabled === 'boolean' ? payload.autoReviewEnabled : undefined,
+      reviewStrictness:
+        typeof payload.reviewStrictness === 'number'
+          ? payload.reviewStrictness
+          : undefined,
+      autoReviewEnabled:
+        typeof payload.autoReviewEnabled === 'boolean'
+          ? payload.autoReviewEnabled
+          : undefined,
       fileFilters: asRecord(payload.fileFilters),
       notificationPreferences: asRecord(payload.notificationPreferences),
       metadata: asRecord(payload.metadata),

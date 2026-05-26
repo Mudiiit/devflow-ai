@@ -1,4 +1,7 @@
-export function formatPaginatedResponse<T>(items: T[], pagination: { page: number; pageSize: number; total: number }) {
+export function formatPaginatedResponse<T>(
+  items: T[],
+  pagination: { page: number; pageSize: number; total: number },
+) {
   const totalPages = Math.ceil((pagination.total || 0) / pagination.pageSize);
   return {
     data: items,

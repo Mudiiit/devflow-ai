@@ -50,7 +50,20 @@ export interface GitHubReviewJobDto {
   id: string;
   repositoryId: string;
   pullRequestId: string;
-  status: 'queued' | 'leased' | 'chunking' | 'analyzing' | 'summarizing' | 'processing' | 'completed' | 'failed' | 'cancelled';
-  jobType: 'pull_request_review' | 'comment_followup' | 'retriage' | 'embedding_refresh';
+  status:
+    | 'queued'
+    | 'leased'
+    | 'chunking'
+    | 'analyzing'
+    | 'summarizing'
+    | 'processing'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
+  jobType:
+    | 'pull_request_review'
+    | 'comment_followup'
+    | 'retriage'
+    | 'embedding_refresh';
   priority: number;
 }

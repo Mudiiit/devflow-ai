@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard.js';
@@ -21,7 +30,9 @@ export class ApiKeysController {
   @Get()
   @Permissions('api_keys.manage')
   async listKeys(@CurrentOrganization() organization: { id: string }) {
-    const keys = await this.apiKeysService.listOrganizationKeys(organization.id);
+    const keys = await this.apiKeysService.listOrganizationKeys(
+      organization.id,
+    );
     return {
       keys: keys.map((entry) => ({
         id: entry.id,

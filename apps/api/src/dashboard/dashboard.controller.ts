@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Permissions } from '../auth/decorators/permissions.decorator.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
@@ -15,7 +23,10 @@ export class DashboardController {
 
   @Get('overview')
   @Permissions('analytics.read')
-  async getOverview(@CurrentOrganization() organization: { id: string }, @Query('window') window: string | undefined) {
+  async getOverview(
+    @CurrentOrganization() organization: { id: string },
+    @Query('window') window: string | undefined,
+  ) {
     return this.dashboardService.getOverview(organization.id, window);
   }
 
@@ -39,20 +50,27 @@ export class DashboardController {
     @Query('pageSize') pageSize: string | undefined,
     @Query('status') status: string | undefined,
   ) {
-    const pagination = parsePagination({ page, pageSize }, {
-      page: 1,
-      pageSize: 25,
-      maxPageSize: 100,
-    });
+    const pagination = parsePagination(
+      { page, pageSize },
+      {
+        page: 1,
+        pageSize: 25,
+        maxPageSize: 100,
+      },
+    );
 
-    const result = await this.dashboardService.getReviewHistory(organization.id, {
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      offset: pagination.offset,
-      status,
-    });
+    const result = await this.dashboardService.getReviewHistory(
+      organization.id,
+      {
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        offset: pagination.offset,
+        status,
+      },
+    );
 
-    const { formatPaginatedResponse } = await import('../common/query/response.js');
+    const { formatPaginatedResponse } =
+      await import('../common/query/response.js');
     return formatPaginatedResponse(result.reviews, result.pagination);
   }
 
@@ -85,7 +103,11 @@ export class DashboardController {
     @CurrentUser() user: { id: string },
     @Param('reviewJobId') reviewJobId: string,
   ) {
-    return this.dashboardService.retryReview(organization.id, reviewJobId, user.id);
+    return this.dashboardService.retryReview(
+      organization.id,
+      reviewJobId,
+      user.id,
+    );
   }
 
   @Get('analytics')
@@ -112,7 +134,10 @@ export class DashboardController {
     @CurrentOrganization() organization: { id: string },
     @Body() body: { reviewStrictness: number },
   ) {
-    return this.dashboardService.updateOrgStrictness(organization.id, body.reviewStrictness);
+    return this.dashboardService.updateOrgStrictness(
+      organization.id,
+      body.reviewStrictness,
+    );
   }
 
   @Get('admin/analytics')

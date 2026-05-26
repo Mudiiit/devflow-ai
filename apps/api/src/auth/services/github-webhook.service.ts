@@ -1,25 +1,41 @@
 import { Injectable } from '@nestjs/common';
-import type { GitHubInstallationPayload, GitHubPullRequestWebhookPayload, GitHubRepositoryWebhookPayload } from '../auth.types.js';
-import type { GitHubWebhookDto, GitHubWebhookIngestionResultDto } from '../dto/github-webhook.dto.js';
+import type {
+  GitHubInstallationPayload,
+  GitHubPullRequestWebhookPayload,
+  GitHubRepositoryWebhookPayload,
+} from '../auth.types.js';
+import type {
+  GitHubWebhookDto,
+  GitHubWebhookIngestionResultDto,
+} from '../dto/github-webhook.dto.js';
 import { RepositorySyncService } from './repository-sync.service.js';
 
 @Injectable()
 export class GitHubWebhookService {
   constructor(private readonly repositorySyncService: RepositorySyncService) {}
 
-  async handleWebhook(event: GitHubWebhookDto['event'], body: Buffer): Promise<GitHubWebhookIngestionResultDto> {
+  async handleWebhook(
+    event: GitHubWebhookDto['event'],
+    body: Buffer,
+  ): Promise<GitHubWebhookIngestionResultDto> {
     const payload = this.parseWebhookPayload(event, body);
 
     switch (payload.event) {
       case 'installation':
       case 'installation_repositories':
-        await this.repositorySyncService.applyInstallationWebhook(payload.payload as GitHubInstallationPayload);
+        await this.repositorySyncService.applyInstallationWebhook(
+          payload.payload,
+        );
         break;
       case 'repository':
-        await this.repositorySyncService.applyRepositoryWebhook(payload.payload as GitHubRepositoryWebhookPayload);
+        await this.repositorySyncService.applyRepositoryWebhook(
+          payload.payload as GitHubRepositoryWebhookPayload,
+        );
         break;
       case 'pull_request':
-        await this.repositorySyncService.createReviewJobFromPullRequestWebhook(payload.payload as GitHubPullRequestWebhookPayload);
+        await this.repositorySyncService.createReviewJobFromPullRequestWebhook(
+          payload.payload as GitHubPullRequestWebhookPayload,
+        );
         break;
       default:
         return { received: true, processed: false, event: payload.event };
@@ -28,7 +44,10 @@ export class GitHubWebhookService {
     return { received: true, processed: true, event: payload.event };
   }
 
-  private parseWebhookPayload(event: GitHubWebhookDto['event'], body: Buffer): GitHubWebhookDto {
+  private parseWebhookPayload(
+    event: GitHubWebhookDto['event'],
+    body: Buffer,
+  ): GitHubWebhookDto {
     const parsed = JSON.parse(body.toString('utf8')) as unknown;
 
     if (!this.isRecord(parsed)) {
@@ -40,11 +59,17 @@ export class GitHubWebhookService {
     }
 
     if (event === 'repository') {
-      return { event, payload: parsed as unknown as GitHubRepositoryWebhookPayload };
+      return {
+        event,
+        payload: parsed as unknown as GitHubRepositoryWebhookPayload,
+      };
     }
 
     if (event === 'pull_request') {
-      return { event, payload: parsed as unknown as GitHubPullRequestWebhookPayload };
+      return {
+        event,
+        payload: parsed as unknown as GitHubPullRequestWebhookPayload,
+      };
     }
 
     throw new Error(`Unsupported GitHub webhook event: ${event}`);

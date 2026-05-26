@@ -11,9 +11,15 @@ export const verifyHmacSha256Signature = (
 
   const expected = createHmac('sha256', secret).update(payload).digest('hex');
 
-  if (!/^[0-9a-f]+$/i.test(normalized) || normalized.length !== expected.length) {
+  if (
+    !/^[0-9a-f]+$/i.test(normalized) ||
+    normalized.length !== expected.length
+  ) {
     return false;
   }
 
-  return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(normalized, 'hex'));
+  return timingSafeEqual(
+    Buffer.from(expected, 'hex'),
+    Buffer.from(normalized, 'hex'),
+  );
 };

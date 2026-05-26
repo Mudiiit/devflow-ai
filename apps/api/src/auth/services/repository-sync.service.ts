@@ -1,5 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import { GithubInstallationsRepository, PullRequestsRepository, RepositoriesRepository, ReviewJobsRepository, UsageRecordsRepository, type GithubInstallation, type NewRepository, type Repository, type ReviewJob } from '@devflow/database';
+import {
+  GithubInstallationsRepository,
+  PullRequestsRepository,
+  RepositoriesRepository,
+  ReviewJobsRepository,
+  UsageRecordsRepository,
+  type GithubInstallation,
+  type NewRepository,
+  type Repository,
+  type ReviewJob,
+} from '@devflow/database';
 import { RequestContextService } from '@devflow/logger';
 import { createTraceCarrier } from '@devflow/tracing';
 import { GitHubAppService } from './github-app.service.js';
@@ -34,15 +44,32 @@ export class RepositorySyncService {
     private readonly reviewQueueService: ReviewQueueService,
   ) {}
 
-  async listInstallationsForUser(userId: string): Promise<GitHubInstallationSummaryDto[]> {
-    const installations = await this.githubInstallationsRepository.findManyByCreatedByUserId(userId);
-    const visibleInstallations = installations.length > 0 ? installations : await this.githubInstallationsRepository.findAll();
+  async listInstallationsForUser(
+    userId: string,
+  ): Promise<GitHubInstallationSummaryDto[]> {
+    const installations =
+      await this.githubInstallationsRepository.findManyByCreatedByUserId(
+        userId,
+      );
+    const visibleInstallations =
+      installations.length > 0
+        ? installations
+        : await this.githubInstallationsRepository.findAll();
 
-    return Promise.all(visibleInstallations.map(async (installation) => this.buildInstallationSummary(installation)));
+    return Promise.all(
+      visibleInstallations.map(async (installation) =>
+        this.buildInstallationSummary(installation),
+      ),
+    );
   }
 
-  async getInstallationStatus(installationId: number): Promise<GitHubInstallationStatusDto> {
-    const installation = await this.githubInstallationsRepository.findByGithubInstallationId(installationId);
+  async getInstallationStatus(
+    installationId: number,
+  ): Promise<GitHubInstallationStatusDto> {
+    const installation =
+      await this.githubInstallationsRepository.findByGithubInstallationId(
+        installationId,
+      );
 
     if (!installation) {
       throw new Error(`GitHub installation ${installationId} not found`);
@@ -51,18 +78,25 @@ export class RepositorySyncService {
     return this.buildInstallationStatus(installation);
   }
 
-  async syncInstallation(installationId: number): Promise<GitHubInstallationSyncDto> {
-    const installation = await this.githubInstallationsRepository.findByGithubInstallationId(installationId);
+  async syncInstallation(
+    installationId: number,
+  ): Promise<GitHubInstallationSyncDto> {
+    const installation =
+      await this.githubInstallationsRepository.findByGithubInstallationId(
+        installationId,
+      );
 
     if (!installation) {
       throw new Error(`GitHub installation ${installationId} not found`);
     }
 
-    const githubRepositories = await this.githubAppService.listInstallationRepositories(installationId);
-    const organization = await this.organizationService.ensureOrganizationForGithubAccount({
-      accountLogin: installation.githubAccountLogin,
-      ownerUserId: installation.createdByUserId ?? null,
-    });
+    const githubRepositories =
+      await this.githubAppService.listInstallationRepositories(installationId);
+    const organization =
+      await this.organizationService.ensureOrganizationForGithubAccount({
+        accountLogin: installation.githubAccountLogin,
+        ownerUserId: installation.createdByUserId ?? null,
+      });
     const now = new Date();
 
     for (const repository of githubRepositories) {
@@ -79,7 +113,8 @@ export class RepositorySyncService {
       githubAccountType: installation.githubAccountType,
       organizationId: organization.id,
       createdByUserId: installation.createdByUserId ?? undefined,
-      installationTarget: installation.installationTarget ?? installation.githubAccountType,
+      installationTarget:
+        installation.installationTarget ?? installation.githubAccountType,
       encryptedAccessToken: installation.encryptedAccessToken ?? undefined,
       accessTokenExpiresAt: installation.accessTokenExpiresAt ?? undefined,
       suspendedAt: null,
@@ -96,28 +131,48 @@ export class RepositorySyncService {
     };
   }
 
-  async connectRepository(installationId: number, githubRepositoryId: number): Promise<GitHubRepositoryConnectionDto> {
-    const installation = await this.githubInstallationsRepository.findByGithubInstallationId(installationId);
+  async connectRepository(
+    installationId: number,
+    githubRepositoryId: number,
+  ): Promise<GitHubRepositoryConnectionDto> {
+    const installation =
+      await this.githubInstallationsRepository.findByGithubInstallationId(
+        installationId,
+      );
 
     if (!installation) {
       throw new Error(`GitHub installation ${installationId} not found`);
     }
 
-    const githubRepositories = await this.githubAppService.listInstallationRepositories(installationId);
-    const repository = githubRepositories.find((entry) => entry.id === githubRepositoryId);
+    const githubRepositories =
+      await this.githubAppService.listInstallationRepositories(installationId);
+    const repository = githubRepositories.find(
+      (entry) => entry.id === githubRepositoryId,
+    );
 
     if (!repository) {
-      throw new Error(`GitHub repository ${githubRepositoryId} is not available on installation ${installationId}`);
+      throw new Error(
+        `GitHub repository ${githubRepositoryId} is not available on installation ${installationId}`,
+      );
     }
 
-    const organizationId = installation.organizationId
-      ?? (await this.organizationService.ensureOrganizationForGithubAccount({
-        accountLogin: installation.githubAccountLogin,
-        ownerUserId: installation.createdByUserId ?? null,
-      })).id;
-    const repositoryRecord = await this.repositoriesRepository.upsertByGithubRepositoryId(
-      this.mapRepositoryInput(installation, repository, new Date(), organizationId),
-    );
+    const organizationId =
+      installation.organizationId ??
+      (
+        await this.organizationService.ensureOrganizationForGithubAccount({
+          accountLogin: installation.githubAccountLogin,
+          ownerUserId: installation.createdByUserId ?? null,
+        })
+      ).id;
+    const repositoryRecord =
+      await this.repositoriesRepository.upsertByGithubRepositoryId(
+        this.mapRepositoryInput(
+          installation,
+          repository,
+          new Date(),
+          organizationId,
+        ),
+      );
 
     return {
       installation: await this.getInstallationStatus(installationId),
@@ -125,34 +180,50 @@ export class RepositorySyncService {
     };
   }
 
-  async applyInstallationWebhook(payload: GitHubInstallationPayload): Promise<GitHubInstallationSyncDto> {
-    const organization = await this.organizationService.ensureOrganizationForGithubAccount({
-      accountLogin: payload.installation.account.login,
-      ownerUserId: null,
-    });
-    const installation = await this.githubInstallationsRepository.upsertByGithubInstallationId({
-      provider: 'github',
-      githubInstallationId: payload.installation.id,
-      githubAccountId: payload.installation.account.id,
-      githubAccountLogin: payload.installation.account.login,
-      githubAccountType: this.normalizeAccountType(payload.installation.account.type),
-      organizationId: organization.id,
-      installationTarget: payload.installation.target_type ?? payload.installation.account.type,
-      suspendedAt: payload.installation.suspended_at ? new Date(payload.installation.suspended_at) : null,
-      metadata: {
-        action: payload.action ?? null,
-        repositorySelection: payload.installation.repository_selection ?? 'all',
-      },
-    });
+  async applyInstallationWebhook(
+    payload: GitHubInstallationPayload,
+  ): Promise<GitHubInstallationSyncDto> {
+    const organization =
+      await this.organizationService.ensureOrganizationForGithubAccount({
+        accountLogin: payload.installation.account.login,
+        ownerUserId: null,
+      });
+    const installation =
+      await this.githubInstallationsRepository.upsertByGithubInstallationId({
+        provider: 'github',
+        githubInstallationId: payload.installation.id,
+        githubAccountId: payload.installation.account.id,
+        githubAccountLogin: payload.installation.account.login,
+        githubAccountType: this.normalizeAccountType(
+          payload.installation.account.type,
+        ),
+        organizationId: organization.id,
+        installationTarget:
+          payload.installation.target_type ?? payload.installation.account.type,
+        suspendedAt: payload.installation.suspended_at
+          ? new Date(payload.installation.suspended_at)
+          : null,
+        metadata: {
+          action: payload.action ?? null,
+          repositorySelection:
+            payload.installation.repository_selection ?? 'all',
+        },
+      });
 
-    const repositoriesFromPayload = payload.repositories ?? payload.repositories_added ?? [];
+    const repositoriesFromPayload =
+      payload.repositories ?? payload.repositories_added ?? [];
 
     if (repositoriesFromPayload.length > 0) {
       const now = new Date();
 
       for (const repository of repositoriesFromPayload) {
         await this.repositoriesRepository.upsertByGithubRepositoryId(
-          this.mapRepositoryInput(installation, repository, now, organization.id),
+          this.mapRepositoryInput(
+            installation,
+            repository,
+            now,
+            organization.id,
+          ),
         );
       }
     } else {
@@ -160,14 +231,19 @@ export class RepositorySyncService {
     }
 
     for (const removedRepository of payload.repositories_removed ?? []) {
-      await this.repositoriesRepository.disableByGithubRepositoryId(removedRepository.id, {
-        installationId: payload.installation.id,
-        removedAt: new Date().toISOString(),
-        source: 'installation_repositories_webhook',
-      });
+      await this.repositoriesRepository.disableByGithubRepositoryId(
+        removedRepository.id,
+        {
+          installationId: payload.installation.id,
+          removedAt: new Date().toISOString(),
+          source: 'installation_repositories_webhook',
+        },
+      );
     }
 
-    const installationStatus = await this.getInstallationStatus(payload.installation.id);
+    const installationStatus = await this.getInstallationStatus(
+      payload.installation.id,
+    );
 
     await this.githubInstallationsRepository.upsertByGithubInstallationId({
       provider: 'github',
@@ -177,7 +253,8 @@ export class RepositorySyncService {
       githubAccountType: installation.githubAccountType,
       organizationId: organization.id,
       createdByUserId: installation.createdByUserId ?? undefined,
-      installationTarget: installation.installationTarget ?? installation.githubAccountType,
+      installationTarget:
+        installation.installationTarget ?? installation.githubAccountType,
       encryptedAccessToken: installation.encryptedAccessToken ?? undefined,
       accessTokenExpiresAt: installation.accessTokenExpiresAt ?? undefined,
       suspendedAt: installation.suspendedAt,
@@ -194,22 +271,38 @@ export class RepositorySyncService {
     };
   }
 
-  async applyRepositoryWebhook(payload: GitHubRepositoryWebhookPayload): Promise<GitHubRepositoryConnectionDto> {
-    const installation = await this.githubInstallationsRepository.findByGithubInstallationId(payload.installation.id);
+  async applyRepositoryWebhook(
+    payload: GitHubRepositoryWebhookPayload,
+  ): Promise<GitHubRepositoryConnectionDto> {
+    const installation =
+      await this.githubInstallationsRepository.findByGithubInstallationId(
+        payload.installation.id,
+      );
 
     if (!installation) {
-      throw new Error(`GitHub installation ${payload.installation.id} not found`);
+      throw new Error(
+        `GitHub installation ${payload.installation.id} not found`,
+      );
     }
 
-    const organizationId = installation.organizationId
-      ?? (await this.organizationService.ensureOrganizationForGithubAccount({
-        accountLogin: installation.githubAccountLogin,
-        ownerUserId: installation.createdByUserId ?? null,
-      })).id;
+    const organizationId =
+      installation.organizationId ??
+      (
+        await this.organizationService.ensureOrganizationForGithubAccount({
+          accountLogin: installation.githubAccountLogin,
+          ownerUserId: installation.createdByUserId ?? null,
+        })
+      ).id;
 
-    const repositoryRecord = await this.repositoriesRepository.upsertByGithubRepositoryId(
-      this.mapRepositoryInput(installation, payload.repository, new Date(), organizationId),
-    );
+    const repositoryRecord =
+      await this.repositoriesRepository.upsertByGithubRepositoryId(
+        this.mapRepositoryInput(
+          installation,
+          payload.repository,
+          new Date(),
+          organizationId,
+        ),
+      );
 
     return {
       installation: await this.getInstallationStatus(payload.installation.id),
@@ -220,54 +313,83 @@ export class RepositorySyncService {
   async createReviewJobFromPullRequestWebhook(
     payload: GitHubPullRequestWebhookPayload,
   ): Promise<{ pullRequestId: string; reviewJob: GitHubReviewJobDto | null }> {
-    const installation = await this.githubInstallationsRepository.findByGithubInstallationId(payload.installation.id);
+    const installation =
+      await this.githubInstallationsRepository.findByGithubInstallationId(
+        payload.installation.id,
+      );
 
     if (!installation) {
-      throw new Error(`GitHub installation ${payload.installation.id} not found`);
+      throw new Error(
+        `GitHub installation ${payload.installation.id} not found`,
+      );
     }
 
-    const repository = await this.repositoriesRepository.findByGithubRepositoryId(payload.repository.id);
+    const repository =
+      await this.repositoriesRepository.findByGithubRepositoryId(
+        payload.repository.id,
+      );
 
     if (!repository) {
-      throw new Error(`GitHub repository ${payload.repository.id} not found for installation ${payload.installation.id}`);
+      throw new Error(
+        `GitHub repository ${payload.repository.id} not found for installation ${payload.installation.id}`,
+      );
     }
 
     const organization = repository.organizationId
-      ? await this.organizationService.getOrganizationById(repository.organizationId)
+      ? await this.organizationService.getOrganizationById(
+          repository.organizationId,
+        )
       : null;
 
     if (!organization) {
-      throw new Error(`Organization for repository ${repository.id} was not found`);
+      throw new Error(
+        `Organization for repository ${repository.id} was not found`,
+      );
     }
 
-    const pullRequest = await this.pullRequestsRepository.upsertByGithubPullRequestId({
-      repositoryId: repository.id,
-      githubPullRequestId: payload.pull_request.id,
-      number: payload.pull_request.number,
-      title: payload.pull_request.title,
-      body: payload.pull_request.body,
-      state: payload.pull_request.state,
-      reviewState: payload.pull_request.draft ? 'pending' : 'queued',
-      baseRef: payload.pull_request.base.ref,
-      headRef: payload.pull_request.head.ref,
-      baseSha: payload.pull_request.base.sha,
-      headSha: payload.pull_request.head.sha,
-      mergedAt: payload.pull_request.merged_at ? new Date(payload.pull_request.merged_at) : null,
-      closedAt: payload.pull_request.closed_at ? new Date(payload.pull_request.closed_at) : null,
-      metadata: {
-        action: payload.action ?? null,
-        draft: payload.pull_request.draft ?? false,
-        installationId: payload.installation.id,
-      },
-    });
+    const pullRequest =
+      await this.pullRequestsRepository.upsertByGithubPullRequestId({
+        repositoryId: repository.id,
+        githubPullRequestId: payload.pull_request.id,
+        number: payload.pull_request.number,
+        title: payload.pull_request.title,
+        body: payload.pull_request.body,
+        state: payload.pull_request.state,
+        reviewState: payload.pull_request.draft ? 'pending' : 'queued',
+        baseRef: payload.pull_request.base.ref,
+        headRef: payload.pull_request.head.ref,
+        baseSha: payload.pull_request.base.sha,
+        headSha: payload.pull_request.head.sha,
+        mergedAt: payload.pull_request.merged_at
+          ? new Date(payload.pull_request.merged_at)
+          : null,
+        closedAt: payload.pull_request.closed_at
+          ? new Date(payload.pull_request.closed_at)
+          : null,
+        metadata: {
+          action: payload.action ?? null,
+          draft: payload.pull_request.draft ?? false,
+          installationId: payload.installation.id,
+        },
+      });
 
-    const reviewTriggerActions = new Set(['opened', 'reopened', 'synchronize', 'ready_for_review']);
+    const reviewTriggerActions = new Set([
+      'opened',
+      'reopened',
+      'synchronize',
+      'ready_for_review',
+    ]);
 
-    if (payload.pull_request.draft || payload.pull_request.state !== 'open' || !reviewTriggerActions.has(payload.action ?? 'opened')) {
+    if (
+      payload.pull_request.draft ||
+      payload.pull_request.state !== 'open' ||
+      !reviewTriggerActions.has(payload.action ?? 'opened')
+    ) {
       return { pullRequestId: pullRequest.id, reviewJob: null };
     }
 
-    const existingJob = await this.reviewJobsRepository.findActiveByPullRequestId(pullRequest.id);
+    const existingJob =
+      await this.reviewJobsRepository.findActiveByPullRequestId(pullRequest.id);
 
     if (existingJob) {
       return {
@@ -301,10 +423,15 @@ export class RepositorySyncService {
     });
 
     await this.reviewQueueService.enqueueReviewJob(reviewJob.id, {
-      requestId: typeof reviewJob.input?.requestId === 'string' ? reviewJob.input.requestId : undefined,
-      traceContext: typeof reviewJob.input?.traceContext === 'object' && reviewJob.input.traceContext !== null
-        ? reviewJob.input.traceContext as Record<string, string>
-        : undefined,
+      requestId:
+        typeof reviewJob.input?.requestId === 'string'
+          ? reviewJob.input.requestId
+          : undefined,
+      traceContext:
+        typeof reviewJob.input?.traceContext === 'object' &&
+        reviewJob.input.traceContext !== null
+          ? (reviewJob.input.traceContext as Record<string, string>)
+          : undefined,
     });
 
     await this.usageRecordsRepository.recordUsage({
@@ -332,40 +459,50 @@ export class RepositorySyncService {
     };
   }
 
-  private buildInstallationSummary(installation: GithubInstallation): Promise<GitHubInstallationSummaryDto> {
-    return this.repositoriesRepository.findManyByInstallationId(installation.id).then((repositories) => ({
-      id: installation.id,
-      githubInstallationId: installation.githubInstallationId,
-      githubAccountLogin: installation.githubAccountLogin,
-      githubAccountType: installation.githubAccountType,
-      installationTarget: installation.installationTarget ?? null,
-      suspendedAt: installation.suspendedAt ?? null,
-      repositoryCount: repositories.length,
-      syncState: this.deriveInstallationState(
-        installation.suspendedAt ?? null,
-        repositories.map((repository) => repository.syncState),
-      ),
-      lastSyncAt: this.readMetadataDate(installation.metadata, 'lastSyncAt'),
-    }));
+  private buildInstallationSummary(
+    installation: GithubInstallation,
+  ): Promise<GitHubInstallationSummaryDto> {
+    return this.repositoriesRepository
+      .findManyByInstallationId(installation.id)
+      .then((repositories) => ({
+        id: installation.id,
+        githubInstallationId: installation.githubInstallationId,
+        githubAccountLogin: installation.githubAccountLogin,
+        githubAccountType: installation.githubAccountType,
+        installationTarget: installation.installationTarget ?? null,
+        suspendedAt: installation.suspendedAt ?? null,
+        repositoryCount: repositories.length,
+        syncState: this.deriveInstallationState(
+          installation.suspendedAt ?? null,
+          repositories.map((repository) => repository.syncState),
+        ),
+        lastSyncAt: this.readMetadataDate(installation.metadata, 'lastSyncAt'),
+      }));
   }
 
-  private buildInstallationStatus(installation: GithubInstallation): Promise<GitHubInstallationStatusDto> {
-    return this.repositoriesRepository.findManyByInstallationId(installation.id).then((repositories) => ({
-      id: installation.id,
-      githubInstallationId: installation.githubInstallationId,
-      githubAccountLogin: installation.githubAccountLogin,
-      githubAccountType: installation.githubAccountType,
-      installationTarget: installation.installationTarget ?? null,
-      suspendedAt: installation.suspendedAt ?? null,
-      repositoryCount: repositories.length,
-      syncState: this.deriveInstallationState(
-        installation.suspendedAt ?? null,
-        repositories.map((repository) => repository.syncState),
-      ),
-      lastSyncAt: this.readMetadataDate(installation.metadata, 'lastSyncAt'),
-      metadata: installation.metadata ?? {},
-      repositories: repositories.map((repository) => this.toRepositorySummary(repository)),
-    }));
+  private buildInstallationStatus(
+    installation: GithubInstallation,
+  ): Promise<GitHubInstallationStatusDto> {
+    return this.repositoriesRepository
+      .findManyByInstallationId(installation.id)
+      .then((repositories) => ({
+        id: installation.id,
+        githubInstallationId: installation.githubInstallationId,
+        githubAccountLogin: installation.githubAccountLogin,
+        githubAccountType: installation.githubAccountType,
+        installationTarget: installation.installationTarget ?? null,
+        suspendedAt: installation.suspendedAt ?? null,
+        repositoryCount: repositories.length,
+        syncState: this.deriveInstallationState(
+          installation.suspendedAt ?? null,
+          repositories.map((repository) => repository.syncState),
+        ),
+        lastSyncAt: this.readMetadataDate(installation.metadata, 'lastSyncAt'),
+        metadata: installation.metadata ?? {},
+        repositories: repositories.map((repository) =>
+          this.toRepositorySummary(repository),
+        ),
+      }));
   }
 
   private mapRepositoryInput(
@@ -379,7 +516,10 @@ export class RepositorySyncService {
       githubRepositoryId: repository.id,
       githubInstallationId: installation.id,
       organizationId: organizationId ?? undefined,
-      ownerLogin: this.extractOwnerLogin(repository.full_name, installation.githubAccountLogin),
+      ownerLogin: this.extractOwnerLogin(
+        repository.full_name,
+        installation.githubAccountLogin,
+      ),
       name: repository.name,
       fullName: repository.full_name,
       defaultBranch: repository.default_branch,
@@ -393,7 +533,9 @@ export class RepositorySyncService {
     };
   }
 
-  private toRepositorySummary(repository: Repository): GitHubRepositorySummaryDto {
+  private toRepositorySummary(
+    repository: Repository,
+  ): GitHubRepositorySummaryDto {
     return {
       id: repository.id,
       githubRepositoryId: repository.githubRepositoryId,
@@ -423,11 +565,15 @@ export class RepositorySyncService {
     };
   }
 
-  private normalizeAccountType(accountType: GitHubInstallationPayload['installation']['account']['type']): 'user' | 'organization' {
+  private normalizeAccountType(
+    accountType: GitHubInstallationPayload['installation']['account']['type'],
+  ): 'user' | 'organization' {
     return accountType === 'Organization' ? 'organization' : 'user';
   }
 
-  private normalizeVisibility(repository: GitHubRepositoryIdentity): 'public' | 'private' | 'internal' {
+  private normalizeVisibility(
+    repository: GitHubRepositoryIdentity,
+  ): 'public' | 'private' | 'internal' {
     return repository.visibility ?? (repository.private ? 'private' : 'public');
   }
 
@@ -436,7 +582,10 @@ export class RepositorySyncService {
     return ownerLogin ?? fallbackLogin;
   }
 
-  private buildRepositoryMetadata(installation: GithubInstallation, repository: GitHubRepositoryIdentity): Record<string, unknown> {
+  private buildRepositoryMetadata(
+    installation: GithubInstallation,
+    repository: GitHubRepositoryIdentity,
+  ): Record<string, unknown> {
     return {
       installationId: installation.githubInstallationId,
       repositorySelection: installation.metadata?.repositorySelection ?? 'all',
@@ -448,7 +597,9 @@ export class RepositorySyncService {
 
   private deriveInstallationState(
     suspendedAt: Date | null,
-    repositoryStates: Array<'pending' | 'syncing' | 'ready' | 'error' | 'disabled'>,
+    repositoryStates: Array<
+      'pending' | 'syncing' | 'ready' | 'error' | 'disabled'
+    >,
   ): 'pending' | 'syncing' | 'ready' | 'error' | 'disabled' {
     if (suspendedAt) {
       return 'disabled';
@@ -458,14 +609,20 @@ export class RepositorySyncService {
       return 'error';
     }
 
-    if (repositoryStates.includes('pending') || repositoryStates.includes('syncing')) {
+    if (
+      repositoryStates.includes('pending') ||
+      repositoryStates.includes('syncing')
+    ) {
       return 'syncing';
     }
 
     return repositoryStates.length > 0 ? 'ready' : 'pending';
   }
 
-  private readMetadataDate(metadata: Record<string, unknown> | null | undefined, key: string): Date | null {
+  private readMetadataDate(
+    metadata: Record<string, unknown> | null | undefined,
+    key: string,
+  ): Date | null {
     const value = metadata?.[key];
 
     if (typeof value !== 'string') {

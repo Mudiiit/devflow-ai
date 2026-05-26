@@ -29,12 +29,18 @@ async function bootstrap() {
       });
       console.info('[api] telemetry initialized');
     } catch (error) {
-      console.warn('[api] telemetry initialization failed, continuing without telemetry: %s', formatFatalError(error));
+      console.warn(
+        '[api] telemetry initialization failed, continuing without telemetry: %s',
+        formatFatalError(error),
+      );
     }
 
     console.info('[api] app bootstrap started');
     const app = await NestFactory.create(AppModule);
-    (app as unknown as { set: (setting: string, value: number) => void }).set('trust proxy', 1);
+    (app as unknown as { set: (setting: string, value: number) => void }).set(
+      'trust proxy',
+      1,
+    );
     app.useLogger(app.get(StructuredLoggerService, { strict: false }));
     app.enableShutdownHooks();
 
@@ -50,7 +56,10 @@ async function bootstrap() {
       app.get(GitHubOAuthService, { strict: false });
       console.info('[api] auth init completed');
     } catch (error) {
-      console.warn('[api] auth init warning, continuing startup: %s', formatFatalError(error));
+      console.warn(
+        '[api] auth init warning, continuing startup: %s',
+        formatFatalError(error),
+      );
     }
 
     console.info('[api] queue init started');
@@ -65,7 +74,10 @@ async function bootstrap() {
     } catch (error) {
       console.warn('Redis unavailable, continuing without queues');
       console.warn('Workers disabled');
-      console.warn('[api] queue init warning, continuing startup: %s', formatFatalError(error));
+      console.warn(
+        '[api] queue init warning, continuing startup: %s',
+        formatFatalError(error),
+      );
     }
 
     app.enableCors({
@@ -81,7 +93,10 @@ async function bootstrap() {
       app.use(createRateLimitMiddleware());
     } catch (error) {
       console.warn('Redis unavailable, continuing without queues');
-      console.warn('[api] rate limit middleware degraded to in-memory fallback: %s', formatFatalError(error));
+      console.warn(
+        '[api] rate limit middleware degraded to in-memory fallback: %s',
+        formatFatalError(error),
+      );
     }
 
     app.use(createIdempotencyMiddleware());
@@ -105,7 +120,10 @@ function formatFatalError(error: unknown): string {
 }
 
 process.on('unhandledRejection', (reason) => {
-  console.warn('[api] unhandledRejection (non-fatal)', formatFatalError(reason));
+  console.warn(
+    '[api] unhandledRejection (non-fatal)',
+    formatFatalError(reason),
+  );
 });
 
 process.on('uncaughtException', (error) => {

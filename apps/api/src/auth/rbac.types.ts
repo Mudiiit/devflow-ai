@@ -79,14 +79,22 @@ const permissionsByRole: Record<AppRole, ReadonlySet<AppPermission>> = {
   ]),
 };
 
-export const hasRoleAtLeast = (currentRole: AppRole, minimumRole: AppRole): boolean => {
+export const hasRoleAtLeast = (
+  currentRole: AppRole,
+  minimumRole: AppRole,
+): boolean => {
   return roleHierarchy[currentRole] >= roleHierarchy[minimumRole];
 };
 
-export const hasPermission = (role: AppRole, permission: AppPermission): boolean => {
+export const hasPermission = (
+  role: AppRole,
+  permission: AppPermission,
+): boolean => {
   return permissionsByRole[role].has(permission);
 };
 
-export const resolvePermissions = (role: AppRole): ReadonlyArray<AppPermission> => {
+export const resolvePermissions = (
+  role: AppRole,
+): ReadonlyArray<AppPermission> => {
   return [...permissionsByRole[role]];
 };

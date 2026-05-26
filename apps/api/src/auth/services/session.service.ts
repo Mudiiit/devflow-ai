@@ -1,7 +1,18 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, authSessions, eq, gt, isNull, users, type DatabaseClient } from '@devflow/database';
+import {
+  and,
+  authSessions,
+  eq,
+  gt,
+  isNull,
+  users,
+  type DatabaseClient,
+} from '@devflow/database';
 import { AUTH_REFRESH_TOKEN_TTL_SECONDS } from '../auth.constants.js';
-import type { AuthenticatedUser, RequestSessionContext } from '../auth.types.js';
+import type {
+  AuthenticatedUser,
+  RequestSessionContext,
+} from '../auth.types.js';
 import { createRandomToken, sha256Hex } from '../utils/crypto.js';
 import { JwtService } from './jwt.service.js';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
@@ -18,22 +29,36 @@ export class SessionService {
     private readonly jwtService: JwtService,
   ) {}
 
-  async issueSession(user: AuthenticatedUser, context: SessionClientContext = {}): Promise<{ accessToken: string; refreshToken: string; csrfToken: string; sessionId: string; expiresAt: Date }> {
+  async issueSession(
+    user: AuthenticatedUser,
+    context: SessionClientContext = {},
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    csrfToken: string;
+    sessionId: string;
+    expiresAt: Date;
+  }> {
     const refreshToken = createRandomToken(48);
     const csrfToken = createRandomToken(24);
-    const expiresAt = new Date(Date.now() + AUTH_REFRESH_TOKEN_TTL_SECONDS * 1000);
+    const expiresAt = new Date(
+      Date.now() + AUTH_REFRESH_TOKEN_TTL_SECONDS * 1000,
+    );
 
-    const rows = await this.db.insert(authSessions).values({
-      userId: user.id,
-      refreshTokenHash: sha256Hex(refreshToken),
-      csrfTokenHash: sha256Hex(csrfToken),
-      expiresAt,
-      userAgent: context.userAgent ?? undefined,
-      ipAddress: context.ipAddress ?? undefined,
-      metadata: { issuedVia: 'github-oauth' },
-    }).returning();
+    const rows = await this.db
+      .insert(authSessions)
+      .values({
+        userId: user.id,
+        refreshTokenHash: sha256Hex(refreshToken),
+        csrfTokenHash: sha256Hex(csrfToken),
+        expiresAt,
+        userAgent: context.userAgent ?? undefined,
+        ipAddress: context.ipAddress ?? undefined,
+        metadata: { issuedVia: 'github-oauth' },
+      })
+      .returning();
 
-    const session = rows[0]!;
+    const session = rows[0];
     const accessToken = this.jwtService.signAccessToken({
       sub: user.id,
       sid: session.id,
@@ -42,16 +67,37 @@ export class SessionService {
       githubLogin: user.githubLogin,
     });
 
-    return { accessToken, refreshToken, csrfToken, sessionId: session.id, expiresAt };
+    return {
+      accessToken,
+      refreshToken,
+      csrfToken,
+      sessionId: session.id,
+      expiresAt,
+    };
   }
 
-  async refreshSession(refreshToken: string, csrfToken: string, context: SessionClientContext = {}): Promise<{ accessToken: string; refreshToken: string; csrfToken: string; session: RequestSessionContext } | null> {
+  async refreshSession(
+    refreshToken: string,
+    csrfToken: string,
+    context: SessionClientContext = {},
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    csrfToken: string;
+    session: RequestSessionContext;
+  } | null> {
     const tokenHash = sha256Hex(refreshToken);
     const rows = await this.db
       .select({ session: authSessions, user: users })
       .from(authSessions)
       .innerJoin(users, eq(authSessions.userId, users.id))
-      .where(and(eq(authSessions.refreshTokenHash, tokenHash), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, new Date())))
+      .where(
+        and(
+          eq(authSessions.refreshTokenHash, tokenHash),
+          isNull(authSessions.revokedAt),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
       .limit(1);
 
     const row = rows[0];
@@ -102,7 +148,9 @@ export class SessionService {
     return rows.length > 0;
   }
 
-  async authenticateAccessToken(accessToken: string): Promise<RequestSessionContext | null> {
+  async authenticateAccessToken(
+    accessToken: string,
+  ): Promise<RequestSessionContext | null> {
     const payload = this.jwtService.verifyAccessToken(accessToken);
 
     if (!payload) {
@@ -113,7 +161,14 @@ export class SessionService {
       .select({ session: authSessions, user: users })
       .from(authSessions)
       .innerJoin(users, eq(authSessions.userId, users.id))
-      .where(and(eq(authSessions.id, payload.sid), eq(authSessions.userId, payload.sub), isNull(authSessions.revokedAt), gt(authSessions.expiresAt, new Date())))
+      .where(
+        and(
+          eq(authSessions.id, payload.sid),
+          eq(authSessions.userId, payload.sub),
+          isNull(authSessions.revokedAt),
+          gt(authSessions.expiresAt, new Date()),
+        ),
+      )
       .limit(1);
 
     const row = rows[0];
@@ -132,7 +187,9 @@ export class SessionService {
       .where(eq(authSessions.id, sessionId));
   }
 
-  private toAuthenticatedUser(user: typeof users.$inferSelect): AuthenticatedUser {
+  private toAuthenticatedUser(
+    user: typeof users.$inferSelect,
+  ): AuthenticatedUser {
     return {
       id: user.id,
       email: user.email,

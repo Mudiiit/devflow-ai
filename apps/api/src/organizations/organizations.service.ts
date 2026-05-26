@@ -27,16 +27,28 @@ export class OrganizationService {
     private readonly usersRepository: UsersRepository,
   ) {}
 
-  async ensurePersonalOrganizationForUser(input: { userId: string; githubLogin: string; displayName?: string | null }) {
-    const memberships = await this.organizationMembershipsRepository.findManyByUserId(input.userId);
+  async ensurePersonalOrganizationForUser(input: {
+    userId: string;
+    githubLogin: string;
+    displayName?: string | null;
+  }) {
+    const memberships =
+      await this.organizationMembershipsRepository.findManyByUserId(
+        input.userId,
+      );
     if (memberships.length > 0) {
-      const organization = await this.organizationsRepository.findById(memberships[0]!.organizationId);
+      const organization = await this.organizationsRepository.findById(
+        memberships[0].organizationId,
+      );
       return organization ?? null;
     }
 
-    const baseSlug = slugify(input.githubLogin) || `user-${input.userId.slice(0, 6)}`;
+    const baseSlug =
+      slugify(input.githubLogin) || `user-${input.userId.slice(0, 6)}`;
     const slug = await this.ensureUniqueSlug(baseSlug);
-    const name = input.displayName ? `${input.displayName} Workspace` : `${input.githubLogin} Workspace`;
+    const name = input.displayName
+      ? `${input.displayName} Workspace`
+      : `${input.githubLogin} Workspace`;
 
     const organization = await this.organizationsRepository.upsertBySlug({
       name,
@@ -73,7 +85,10 @@ export class OrganizationService {
     return organization;
   }
 
-  async ensureOrganizationForGithubAccount(input: { accountLogin: string; ownerUserId?: string | null }) {
+  async ensureOrganizationForGithubAccount(input: {
+    accountLogin: string;
+    ownerUserId?: string | null;
+  }) {
     const slugBase = slugify(input.accountLogin) || `org-${Date.now()}`;
     let organization = await this.organizationsRepository.findBySlug(slugBase);
 
@@ -103,16 +118,26 @@ export class OrganizationService {
   }
 
   async listOrganizationsForUser(userId: string) {
-    const memberships = await this.organizationMembershipsRepository.findManyByUserId(userId);
+    const memberships =
+      await this.organizationMembershipsRepository.findManyByUserId(userId);
     const organizations = await Promise.all(
       memberships.map(async (membership) => ({
         membership,
-        organization: await this.organizationsRepository.findById(membership.organizationId),
+        organization: await this.organizationsRepository.findById(
+          membership.organizationId,
+        ),
       })),
     );
 
     return organizations
-      .filter((entry): entry is { membership: OrganizationMembership; organization: Organization } => Boolean(entry.organization))
+      .filter(
+        (
+          entry,
+        ): entry is {
+          membership: OrganizationMembership;
+          organization: Organization;
+        } => Boolean(entry.organization),
+      )
       .map((entry) => ({
         membership: entry.membership,
         organization: entry.organization,
@@ -124,7 +149,10 @@ export class OrganizationService {
   }
 
   async listOrganizationMembers(organizationId: string) {
-    const memberships = await this.organizationMembershipsRepository.findManyByOrganizationId(organizationId);
+    const memberships =
+      await this.organizationMembershipsRepository.findManyByOrganizationId(
+        organizationId,
+      );
     const members = await Promise.all(
       memberships.map(async (membership) => ({
         membership,
@@ -138,7 +166,11 @@ export class OrganizationService {
     }));
   }
 
-  async upsertOrganizationMember(organizationId: string, userId: string, role: User['role']) {
+  async upsertOrganizationMember(
+    organizationId: string,
+    userId: string,
+    role: User['role'],
+  ) {
     return this.organizationMembershipsRepository.upsertMembership({
       organizationId,
       userId,

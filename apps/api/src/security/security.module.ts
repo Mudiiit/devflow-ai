@@ -8,7 +8,17 @@ import { AuditTrailService } from './services/audit-trail.service.js';
 @Global()
 @Module({
   imports: [DatabaseModule],
-  providers: [CacheService, FeatureFlagsService, SecretsService, AuditTrailService],
-  exports: [CacheService, FeatureFlagsService, SecretsService, AuditTrailService],
+  providers: [
+    CacheService,
+    FeatureFlagsService,
+    SecretsService,
+    AuditTrailService,
+  ],
+  exports: [
+    CacheService,
+    FeatureFlagsService,
+    SecretsService,
+    AuditTrailService,
+  ],
 })
 export class SecurityModule {}

@@ -1,6 +1,14 @@
-import { CanActivate, ExecutionContext, Inject, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { Request } from 'express';
-import { AUTH_ACCESS_TOKEN_COOKIE, AUTH_BEARER_PREFIX } from '../auth.constants.js';
+import {
+  AUTH_ACCESS_TOKEN_COOKIE,
+  AUTH_BEARER_PREFIX,
+} from '../auth.constants.js';
 import { SessionService } from '../services/session.service.js';
 
 @Injectable()
@@ -8,7 +16,9 @@ export class JwtAuthGuard implements CanActivate {
   constructor(private readonly sessionService: SessionService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { authSession?: unknown }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { authSession?: unknown }>();
     const token = this.extractToken(request);
 
     if (!token) {
@@ -31,7 +41,10 @@ export class JwtAuthGuard implements CanActivate {
       return authorization.slice(AUTH_BEARER_PREFIX.length).trim();
     }
 
-    const cookieToken = this.readCookie(request.headers.cookie ?? '', AUTH_ACCESS_TOKEN_COOKIE);
+    const cookieToken = this.readCookie(
+      request.headers.cookie ?? '',
+      AUTH_ACCESS_TOKEN_COOKIE,
+    );
     return cookieToken ?? null;
   }
 

@@ -29,14 +29,20 @@ export class GithubController {
   async install(@Query('returnTo') returnTo: string | undefined) {
     const { state } = await this.oauthStateService.createState(returnTo);
     return {
-      installationUrl: this.githubAppStrategy.buildInstallationUrl(state).toString(),
+      installationUrl: this.githubAppStrategy
+        .buildInstallationUrl(state)
+        .toString(),
     };
   }
 
   @Get('installations')
   @UseGuards(JwtAuthGuard)
-  async listInstallations(@CurrentUser() user: { id: string }): Promise<{ userId: string; installations: GitHubInstallationSummaryDto[] }> {
-    const installations = await this.repositorySyncService.listInstallationsForUser(user.id);
+  async listInstallations(@CurrentUser() user: { id: string }): Promise<{
+    userId: string;
+    installations: GitHubInstallationSummaryDto[];
+  }> {
+    const installations =
+      await this.repositorySyncService.listInstallationsForUser(user.id);
 
     return {
       userId: user.id,
@@ -46,25 +52,37 @@ export class GithubController {
 
   @Get('installations/:installationId/status')
   @UseGuards(JwtAuthGuard)
-  async getInstallationStatus(@Param('installationId') installationId: string): Promise<{ installation: GitHubInstallationStatusDto }> {
+  async getInstallationStatus(
+    @Param('installationId') installationId: string,
+  ): Promise<{ installation: GitHubInstallationStatusDto }> {
     return {
-      installation: await this.repositorySyncService.getInstallationStatus(this.parseId(installationId, 'installationId')),
+      installation: await this.repositorySyncService.getInstallationStatus(
+        this.parseId(installationId, 'installationId'),
+      ),
     };
   }
 
   @Get('installations/:installationId/repositories')
   @UseGuards(JwtAuthGuard)
-  async listInstallationRepositories(@Param('installationId') installationId: string): Promise<{ installation: GitHubInstallationStatusDto }> {
+  async listInstallationRepositories(
+    @Param('installationId') installationId: string,
+  ): Promise<{ installation: GitHubInstallationStatusDto }> {
     return {
-      installation: await this.repositorySyncService.getInstallationStatus(this.parseId(installationId, 'installationId')),
+      installation: await this.repositorySyncService.getInstallationStatus(
+        this.parseId(installationId, 'installationId'),
+      ),
     };
   }
 
   @Post('installations/:installationId/sync')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('owner', 'admin')
-  async syncInstallation(@Param('installationId') installationId: string): Promise<GitHubInstallationSyncDto> {
-    return this.repositorySyncService.syncInstallation(this.parseId(installationId, 'installationId'));
+  async syncInstallation(
+    @Param('installationId') installationId: string,
+  ): Promise<GitHubInstallationSyncDto> {
+    return this.repositorySyncService.syncInstallation(
+      this.parseId(installationId, 'installationId'),
+    );
   }
 
   @Post('installations/:installationId/repositories/:repositoryId/connect')

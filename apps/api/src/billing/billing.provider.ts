@@ -31,7 +31,8 @@ import {
 import { eq } from 'drizzle-orm';
 import { DATABASE_CLIENT } from '../database/database.constants.js';
 
-const monthsForCadence = (cadence: BillingCadence): number => (cadence === 'annual' ? 12 : 1);
+const monthsForCadence = (cadence: BillingCadence): number =>
+  cadence === 'annual' ? 12 : 1;
 
 function resolveAnnualPrice(monthlyPriceCents: number): number {
   return monthlyPriceCents <= 0 ? 0 : Math.round(monthlyPriceCents * 10);
@@ -52,11 +53,17 @@ function toPlanRowDefinition(plan: BillingPlanSnapshot) {
     quotaRules: plan.quota,
     featured: plan.featured,
     active: plan.active,
-    sortOrder: defaultBillingPlans.findIndex((entry) => entry.code === plan.code),
+    sortOrder: defaultBillingPlans.findIndex(
+      (entry) => entry.code === plan.code,
+    ),
     metadata: {
       seededFrom: 'default_billing_plans',
-      sortOrder: defaultBillingPlans.findIndex((entry) => entry.code === plan.code),
-      popular: defaultBillingPlans.find((entry) => entry.code === plan.code)?.popular ?? false,
+      sortOrder: defaultBillingPlans.findIndex(
+        (entry) => entry.code === plan.code,
+      ),
+      popular:
+        defaultBillingPlans.find((entry) => entry.code === plan.code)
+          ?.popular ?? false,
     },
   };
 }
@@ -88,7 +95,10 @@ function toCustomerSummary(customer: BillingCustomer): BillingCustomerSummary {
   };
 }
 
-function toSubscriptionSummary(subscription: Subscription, plan: PricingPlan | null): BillingSubscriptionSummary {
+function toSubscriptionSummary(
+  subscription: Subscription,
+  plan: PricingPlan | null,
+): BillingSubscriptionSummary {
   return {
     id: subscription.id,
     organizationId: subscription.organizationId,
@@ -141,7 +151,9 @@ export class DatabaseBillingProvider implements BillingProvider {
 
     if (plans.length === 0) {
       for (const plan of defaultBillingPlans) {
-        await this.pricingPlansRepository.upsertByCode(toPlanRowDefinition(plan));
+        await this.pricingPlansRepository.upsertByCode(
+          toPlanRowDefinition(plan),
+        );
       }
 
       return defaultBillingPlans.map((plan) => ({
@@ -161,7 +173,9 @@ export class DatabaseBillingProvider implements BillingProvider {
     return plans.map(toBillingPlanSnapshot);
   }
 
-  async createCheckoutSession(input: BillingCheckoutSessionInput): Promise<BillingCheckoutSession> {
+  async createCheckoutSession(
+    input: BillingCheckoutSessionInput,
+  ): Promise<BillingCheckoutSession> {
     const sessionId = `checkout_${randomUUID()}`;
     const url = new URL(input.successUrl);
     url.searchParams.set('billing_session', sessionId);
@@ -177,7 +191,9 @@ export class DatabaseBillingProvider implements BillingProvider {
     };
   }
 
-  async createPortalSession(input: BillingPortalSessionInput): Promise<BillingPortalSession> {
+  async createPortalSession(
+    input: BillingPortalSessionInput,
+  ): Promise<BillingPortalSession> {
     const sessionId = `portal_${randomUUID()}`;
     const url = new URL(input.returnUrl);
     url.searchParams.set('billing_portal', sessionId);
@@ -188,30 +204,39 @@ export class DatabaseBillingProvider implements BillingProvider {
     };
   }
 
-  async changeSubscription(input: BillingPlanChangeInput): Promise<BillingSubscriptionSummary> {
+  async changeSubscription(
+    input: BillingPlanChangeInput,
+  ): Promise<BillingSubscriptionSummary> {
     const plans = await this.pricingPlansRepository.findActivePlans();
     if (plans.length === 0) {
       await this.listPlans();
     }
 
-    const planRow = (await this.pricingPlansRepository.findByCode(input.planCode)) ?? (await this.pricingPlansRepository.findByCode('free'));
+    const planRow =
+      (await this.pricingPlansRepository.findByCode(input.planCode)) ??
+      (await this.pricingPlansRepository.findByCode('free'));
     const plan = planRow ?? null;
     if (!plan) {
       throw new Error(`Pricing plan ${input.planCode} is not available`);
     }
 
-    const customer = input.customer ?? (await this.billingCustomersRepository.upsertForOrganization({
-      organizationId: input.organizationId,
-      provider: this.name,
-      providerCustomerId: null,
-      email: null,
-      name: null,
-      currency: plan.currency,
-      metadata: { source: 'billing_change_subscription' },
-    }));
+    const customer =
+      input.customer ??
+      (await this.billingCustomersRepository.upsertForOrganization({
+        organizationId: input.organizationId,
+        provider: this.name,
+        providerCustomerId: null,
+        email: null,
+        name: null,
+        currency: plan.currency,
+        metadata: { source: 'billing_change_subscription' },
+      }));
 
     const now = new Date();
-    const currentPeriodEnd = new Date(now.getTime() + monthsForCadence(input.cadence) * 30 * 24 * 60 * 60 * 1000);
+    const currentPeriodEnd = new Date(
+      now.getTime() +
+        monthsForCadence(input.cadence) * 30 * 24 * 60 * 60 * 1000,
+    );
     const monthlyPriceCents = plan.monthlyPriceCents;
     const subscription = await this.subscriptionsRepository.upsertCurrent({
       organizationId: input.organizationId,
@@ -268,15 +293,29 @@ export class DatabaseBillingProvider implements BillingProvider {
     return toSubscriptionSummary(subscription, plan);
   }
 
-  async listInvoices(input: { readonly organizationId: string; readonly customer: BillingCustomerSummary | null }): Promise<readonly BillingInvoiceSummary[]> {
-    const invoices = await this.invoicesRepository.findByOrganizationId(input.organizationId);
+  async listInvoices(input: {
+    readonly organizationId: string;
+    readonly customer: BillingCustomerSummary | null;
+  }): Promise<readonly BillingInvoiceSummary[]> {
+    const invoices = await this.invoicesRepository.findByOrganizationId(
+      input.organizationId,
+    );
     return invoices.map(toInvoiceSummary);
   }
 
   async handleWebhook(event: BillingProviderWebhookEvent): Promise<void> {
-    if (event.type === 'billing.subscription.updated' || event.type === 'billing.subscription.created') {
-      const organizationId = typeof event.payload.organizationId === 'string' ? event.payload.organizationId : null;
-      const planCode = typeof event.payload.planCode === 'string' ? event.payload.planCode : null;
+    if (
+      event.type === 'billing.subscription.updated' ||
+      event.type === 'billing.subscription.created'
+    ) {
+      const organizationId =
+        typeof event.payload.organizationId === 'string'
+          ? event.payload.organizationId
+          : null;
+      const planCode =
+        typeof event.payload.planCode === 'string'
+          ? event.payload.planCode
+          : null;
       const cadence = event.payload.cadence === 'annual' ? 'annual' : 'monthly';
 
       if (organizationId && planCode) {
@@ -295,30 +334,60 @@ export class DatabaseBillingProvider implements BillingProvider {
     }
 
     if (event.type === 'billing.invoice.paid') {
-      const providerInvoiceId = typeof event.payload.providerInvoiceId === 'string' ? event.payload.providerInvoiceId : null;
-      const invoiceNumber = typeof event.payload.invoiceNumber === 'string' ? event.payload.invoiceNumber : `WEBHOOK-${event.id}`;
+      const providerInvoiceId =
+        typeof event.payload.providerInvoiceId === 'string'
+          ? event.payload.providerInvoiceId
+          : null;
+      const invoiceNumber =
+        typeof event.payload.invoiceNumber === 'string'
+          ? event.payload.invoiceNumber
+          : `WEBHOOK-${event.id}`;
 
       if (providerInvoiceId) {
         await this.invoicesRepository.upsertByProviderInvoiceId({
-          organizationId: typeof event.payload.organizationId === 'string' ? event.payload.organizationId : '',
+          organizationId:
+            typeof event.payload.organizationId === 'string'
+              ? event.payload.organizationId
+              : '',
           billingCustomerId: null,
           subscriptionId: null,
           provider: this.name,
           providerInvoiceId,
           invoiceNumber,
           status: 'paid',
-          currency: typeof event.payload.currency === 'string' ? event.payload.currency : 'usd',
-          subtotalCents: typeof event.payload.subtotalCents === 'number' ? event.payload.subtotalCents : 0,
-          taxCents: typeof event.payload.taxCents === 'number' ? event.payload.taxCents : 0,
-          totalCents: typeof event.payload.totalCents === 'number' ? event.payload.totalCents : 0,
-          amountPaidCents: typeof event.payload.amountPaidCents === 'number' ? event.payload.amountPaidCents : 0,
+          currency:
+            typeof event.payload.currency === 'string'
+              ? event.payload.currency
+              : 'usd',
+          subtotalCents:
+            typeof event.payload.subtotalCents === 'number'
+              ? event.payload.subtotalCents
+              : 0,
+          taxCents:
+            typeof event.payload.taxCents === 'number'
+              ? event.payload.taxCents
+              : 0,
+          totalCents:
+            typeof event.payload.totalCents === 'number'
+              ? event.payload.totalCents
+              : 0,
+          amountPaidCents:
+            typeof event.payload.amountPaidCents === 'number'
+              ? event.payload.amountPaidCents
+              : 0,
           amountDueCents: 0,
           issuedAt: new Date(event.createdAt),
           dueAt: null,
           periodStart: null,
           periodEnd: null,
-          hostedInvoiceUrl: typeof event.payload.hostedInvoiceUrl === 'string' ? event.payload.hostedInvoiceUrl : null,
-          invoicePdfUrl: typeof event.payload.invoicePdfUrl === 'string' ? event.payload.invoicePdfUrl : null,
+          hostedInvoiceUrl:
+            typeof event.payload.hostedInvoiceUrl === 'string'
+              ? event.payload.hostedInvoiceUrl
+              : null,
+          invoicePdfUrl:
+            typeof event.payload.invoicePdfUrl === 'string'
+              ? event.payload.invoicePdfUrl
+              : null,
           metadata: event.payload,
         });
       }

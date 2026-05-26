@@ -32,25 +32,39 @@ export class GitHubOAuthService {
       throw new Error('GitHub OAuth client credentials are not configured');
     }
 
-    const response = await fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: serverEnv.GITHUB_CLIENT_ID,
-        client_secret: serverEnv.GITHUB_CLIENT_SECRET,
-        code,
-        redirect_uri: this.callbackUrl,
-      }),
-    });
+    const response = await fetch(
+      'https://github.com/login/oauth/access_token',
+      {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: serverEnv.GITHUB_CLIENT_ID,
+          client_secret: serverEnv.GITHUB_CLIENT_SECRET,
+          code,
+          redirect_uri: this.callbackUrl,
+        }),
+      },
+    );
 
     if (!response.ok) {
-      throw new Error(`GitHub token exchange failed with status ${response.status}`);
+      throw new Error(
+        `GitHub token exchange failed with status ${response.status}`,
+      );
     }
 
-    const body = await response.json() as { access_token?: string; error?: string; error_description?: string };
+    const body = (await response.json()) as {
+      access_token?: string;
+      error?: string;
+      error_description?: string;
+    };
 
     if (!body.access_token) {
-      throw new Error(body.error_description ?? body.error ?? 'GitHub token exchange failed');
+      throw new Error(
+        body.error_description ?? body.error ?? 'GitHub token exchange failed',
+      );
     }
 
     return body.access_token;
@@ -59,18 +73,28 @@ export class GitHubOAuthService {
   async fetchProfile(accessToken: string): Promise<GitHubOAuthProfile> {
     const [userResponse, emailResponse] = await Promise.all([
       fetch('https://api.github.com/user', {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
       }),
       fetch('https://api.github.com/user/emails', {
-        headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        },
       }),
     ]);
 
     if (!userResponse.ok) {
-      throw new Error(`GitHub profile lookup failed with status ${userResponse.status}`);
+      throw new Error(
+        `GitHub profile lookup failed with status ${userResponse.status}`,
+      );
     }
 
-    const user = await userResponse.json() as {
+    const user = (await userResponse.json()) as {
       id: number;
       login: string;
       name: string | null;
@@ -84,8 +108,14 @@ export class GitHubOAuthService {
     let email = user.email;
 
     if (!emailResponse.ok || !email) {
-      const emails = await emailResponse.json().catch(() => []) as Array<{ email: string; primary: boolean; verified: boolean }>;
-      email = emails.find((entry) => entry.primary && entry.verified)?.email ?? `${user.login}@users.noreply.github.com`;
+      const emails = (await emailResponse.json().catch(() => [])) as Array<{
+        email: string;
+        primary: boolean;
+        verified: boolean;
+      }>;
+      email =
+        emails.find((entry) => entry.primary && entry.verified)?.email ??
+        `${user.login}@users.noreply.github.com`;
     }
 
     return {
@@ -101,7 +131,11 @@ export class GitHubOAuthService {
   }
 
   async upsertUser(db: DatabaseClient, profile: GitHubOAuthProfile) {
-    const existingRows = await db.select().from(users).where(eq(users.githubUserId, profile.githubUserId)).limit(1);
+    const existingRows = await db
+      .select()
+      .from(users)
+      .where(eq(users.githubUserId, profile.githubUserId))
+      .limit(1);
     const now = new Date();
     const payload = {
       email: profile.email,
@@ -128,7 +162,7 @@ export class GitHubOAuthService {
         .where(eq(users.id, existingRows[0].id))
         .returning();
 
-      return rows[0]!;
+      return rows[0];
     }
 
     const rows = await db
@@ -140,6 +174,6 @@ export class GitHubOAuthService {
       })
       .returning();
 
-    return rows[0]!;
+    return rows[0];
   }
 }

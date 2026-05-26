@@ -9,7 +9,11 @@ type CachedResponse = {
   expiresAt: number;
 };
 
-const writeJson = (response: Response, statusCode: number, body: unknown): void => {
+const writeJson = (
+  response: Response,
+  statusCode: number,
+  body: unknown,
+): void => {
   response.status(statusCode).json(body);
 };
 
@@ -23,10 +27,14 @@ const getHeaderValue = (request: Request, name: string): string | null => {
     return null;
   }
 
-  return Array.isArray(value) ? value[0] ?? null : value;
+  return Array.isArray(value) ? (value[0] ?? null) : value;
 };
 
-export const createIdempotencyMiddleware = (): ((request: Request, response: Response, next: NextFunction) => void) => {
+export const createIdempotencyMiddleware = (): ((
+  request: Request,
+  response: Response,
+  next: NextFunction,
+) => void) => {
   const cache = new Map<string, CachedResponse>();
   const ttlSeconds = serverEnv.API_IDEMPOTENCY_TTL_SECONDS;
 
@@ -44,10 +52,12 @@ export const createIdempotencyMiddleware = (): ((request: Request, response: Res
 
     const key = `${request.method.toUpperCase()}:${request.originalUrl}:${rawKey}`;
     const requestHash = createHash('sha256')
-      .update(JSON.stringify({
-        query: request.query,
-        body: request.body ?? {},
-      }))
+      .update(
+        JSON.stringify({
+          query: request.query,
+          body: request.body ?? {},
+        }),
+      )
       .digest('hex');
 
     const now = Date.now();
@@ -55,7 +65,8 @@ export const createIdempotencyMiddleware = (): ((request: Request, response: Res
     if (existing && existing.expiresAt > now) {
       if (existing.requestHash !== requestHash) {
         writeJson(response, 409, {
-          message: 'Idempotency key already used with a different request payload',
+          message:
+            'Idempotency key already used with a different request payload',
         });
         return;
       }

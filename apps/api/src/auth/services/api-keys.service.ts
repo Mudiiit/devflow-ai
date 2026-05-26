@@ -34,7 +34,11 @@ export class ApiKeysService {
     return { id: created.id, token, prefix };
   }
 
-  async verifyToken(token: string): Promise<{ apiKeyId: string; organizationId: string; scopes: ApiScope[] } | null> {
+  async verifyToken(token: string): Promise<{
+    apiKeyId: string;
+    organizationId: string;
+    scopes: ApiScope[];
+  } | null> {
     const prefix = token.split('.')[0];
 
     if (!prefix || !prefix.startsWith(API_KEY_PREFIX)) {
@@ -49,8 +53,14 @@ export class ApiKeysService {
 
     await this.apiKeysRepository.markUsed(apiKey.id);
 
-    const scopes = Array.isArray(apiKey.scopes) ? (apiKey.scopes as ApiScope[]) : [];
-    return { apiKeyId: apiKey.id, organizationId: apiKey.organizationId, scopes };
+    const scopes = Array.isArray(apiKey.scopes)
+      ? (apiKey.scopes as ApiScope[])
+      : [];
+    return {
+      apiKeyId: apiKey.id,
+      organizationId: apiKey.organizationId,
+      scopes,
+    };
   }
 
   async listOrganizationKeys(organizationId: string) {

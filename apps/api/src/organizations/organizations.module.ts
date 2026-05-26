@@ -8,7 +8,15 @@ import { RepositoryAccessGuard } from './guards/repository-access.guard.js';
 @Module({
   imports: [DatabaseModule],
   controllers: [OrganizationsController],
-  providers: [OrganizationService, OrganizationMemberGuard, RepositoryAccessGuard],
-  exports: [OrganizationService, OrganizationMemberGuard, RepositoryAccessGuard],
+  providers: [
+    OrganizationService,
+    OrganizationMemberGuard,
+    RepositoryAccessGuard,
+  ],
+  exports: [
+    OrganizationService,
+    OrganizationMemberGuard,
+    RepositoryAccessGuard,
+  ],
 })
 export class OrganizationsModule {}

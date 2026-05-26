@@ -1,7 +1,11 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
 import { RepositoriesRepository } from '@devflow/database';
-import { hasPermission, type AppPermission, type AppRole } from '../../auth/rbac.types.js';
+import {
+  hasPermission,
+  type AppPermission,
+  type AppRole,
+} from '../../auth/rbac.types.js';
 
 interface OrganizationContext {
   organization: { id: string };
@@ -10,16 +14,20 @@ interface OrganizationContext {
 
 @Injectable()
 export class RepositoryAccessGuard implements CanActivate {
-  constructor(private readonly repositoriesRepository: RepositoriesRepository) {}
+  constructor(
+    private readonly repositoriesRepository: RepositoriesRepository,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & {
-      orgContext?: OrganizationContext;
-      repositoryContext?: unknown;
-      body?: Record<string, unknown>;
-      query: Record<string, string | undefined>;
-      params: Record<string, string | undefined>;
-    }>();
+    const request = context.switchToHttp().getRequest<
+      Request & {
+        orgContext?: OrganizationContext;
+        repositoryContext?: unknown;
+        body?: Record<string, unknown>;
+        query: Record<string, string | undefined>;
+        params: Record<string, string | undefined>;
+      }
+    >();
 
     const org = request.orgContext;
     if (!org || org.membership.status !== 'active') {
@@ -49,7 +57,9 @@ export class RepositoryAccessGuard implements CanActivate {
   }
 
   private resolvePermission(method: string): AppPermission {
-    return ['GET', 'HEAD'].includes(method.toUpperCase()) ? 'repository.read' : 'repository.manage';
+    return ['GET', 'HEAD'].includes(method.toUpperCase())
+      ? 'repository.read'
+      : 'repository.manage';
   }
 
   private readRepositoryId(

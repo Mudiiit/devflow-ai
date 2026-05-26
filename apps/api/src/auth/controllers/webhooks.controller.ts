@@ -14,7 +14,17 @@ export class WebhooksController {
 
   @Post()
   @RateLimit({ limit: 300, windowMs: 60_000 })
-  async handleWebhook(@Headers(AUTH_WEBHOOK_EVENT_HEADER) event: string, @Req() request: Request & { body: Buffer }): Promise<GitHubWebhookIngestionResultDto> {
-    return this.githubWebhookService.handleWebhook(event as 'installation' | 'installation_repositories' | 'repository' | 'pull_request', request.body);
+  async handleWebhook(
+    @Headers(AUTH_WEBHOOK_EVENT_HEADER) event: string,
+    @Req() request: Request & { body: Buffer },
+  ): Promise<GitHubWebhookIngestionResultDto> {
+    return this.githubWebhookService.handleWebhook(
+      event as
+        | 'installation'
+        | 'installation_repositories'
+        | 'repository'
+        | 'pull_request',
+      request.body,
+    );
   }
 }

@@ -73,12 +73,27 @@ export class BillingService {
     private readonly organizationsRepository: OrganizationsRepository,
   ) {}
 
-  async getCurrentSubscription(organizationId: string): Promise<BillingOverviewResponse> {
+  async getCurrentSubscription(
+    organizationId: string,
+  ): Promise<BillingOverviewResponse> {
     const plan = await this.ensurePricingPlanForOrganization(organizationId);
     const customer = await this.ensureCustomer(organizationId, plan.currency);
-    const subscription = await this.ensureSubscription(organizationId, customer.id, plan.id, plan.code);
-    const usage = await this.buildUsageResponse(organizationId, plan, customer, subscription);
-    const invoices = await this.billingProvider.listInvoices({ organizationId, customer });
+    const subscription = await this.ensureSubscription(
+      organizationId,
+      customer.id,
+      plan.id,
+      plan.code,
+    );
+    const usage = await this.buildUsageResponse(
+      organizationId,
+      plan,
+      customer,
+      subscription,
+    );
+    const invoices = await this.billingProvider.listInvoices({
+      organizationId,
+      customer,
+    });
     const plans = await this.billingProvider.listPlans();
 
     return {
@@ -91,17 +106,36 @@ export class BillingService {
     };
   }
 
-  async getUsageStatistics(organizationId: string): Promise<BillingUsageResponse> {
+  async getUsageStatistics(
+    organizationId: string,
+  ): Promise<BillingUsageResponse> {
     const plan = await this.ensurePricingPlanForOrganization(organizationId);
     const customer = await this.ensureCustomer(organizationId, plan.currency);
-    const subscription = await this.ensureSubscription(organizationId, customer.id, plan.id, plan.code);
-    return this.buildUsageResponse(organizationId, plan, customer, subscription);
+    const subscription = await this.ensureSubscription(
+      organizationId,
+      customer.id,
+      plan.id,
+      plan.code,
+    );
+    return this.buildUsageResponse(
+      organizationId,
+      plan,
+      customer,
+      subscription,
+    );
   }
 
-  async getBillingHistory(organizationId: string): Promise<{ readonly invoices: readonly BillingInvoiceSummary[]; readonly recentUsage: readonly BillingUsageEntry[] }> {
+  async getBillingHistory(organizationId: string): Promise<{
+    readonly invoices: readonly BillingInvoiceSummary[];
+    readonly recentUsage: readonly BillingUsageEntry[];
+  }> {
     const customer = await this.ensureCustomer(organizationId, 'usd');
-    const invoices = await this.billingProvider.listInvoices({ organizationId, customer });
-    const usageRows = await this.usageRecordsRepository.listUsageByOrganization(organizationId);
+    const invoices = await this.billingProvider.listInvoices({
+      organizationId,
+      customer,
+    });
+    const usageRows =
+      await this.usageRecordsRepository.listUsageByOrganization(organizationId);
 
     return {
       invoices,
@@ -116,10 +150,22 @@ export class BillingService {
     return this.billingProvider.listPlans();
   }
 
-  async createCheckoutSession(organizationId: string, input: { readonly planCode: string; readonly cadence?: 'monthly' | 'annual'; readonly successUrl?: string; readonly cancelUrl?: string }) {
-    const plan = await this.ensurePricingPlanForOrganization(organizationId, input.planCode);
+  async createCheckoutSession(
+    organizationId: string,
+    input: {
+      readonly planCode: string;
+      readonly cadence?: 'monthly' | 'annual';
+      readonly successUrl?: string;
+      readonly cancelUrl?: string;
+    },
+  ) {
+    const plan = await this.ensurePricingPlanForOrganization(
+      organizationId,
+      input.planCode,
+    );
     const customer = await this.ensureCustomer(organizationId, plan.currency);
-    const subscription = await this.subscriptionsRepository.findByOrganizationId(organizationId);
+    const subscription =
+      await this.subscriptionsRepository.findByOrganizationId(organizationId);
     const origin = this.resolveAppUrl();
 
     return this.billingProvider.createCheckoutSession({
@@ -136,23 +182,47 @@ export class BillingService {
     });
   }
 
-  async changeSubscription(organizationId: string, input: { readonly planCode: string; readonly cadence?: 'monthly' | 'annual'; readonly successUrl?: string; readonly cancelUrl?: string }) {
-    const plan = await this.ensurePricingPlanForOrganization(organizationId, input.planCode);
+  async changeSubscription(
+    organizationId: string,
+    input: {
+      readonly planCode: string;
+      readonly cadence?: 'monthly' | 'annual';
+      readonly successUrl?: string;
+      readonly cancelUrl?: string;
+    },
+  ) {
+    const plan = await this.ensurePricingPlanForOrganization(
+      organizationId,
+      input.planCode,
+    );
     const customer = await this.ensureCustomer(organizationId, plan.currency);
-    const subscription = await this.subscriptionsRepository.findByOrganizationId(organizationId);
+    const subscription =
+      await this.subscriptionsRepository.findByOrganizationId(organizationId);
     const origin = this.resolveAppUrl();
 
     const updatedSubscription = await this.billingProvider.changeSubscription({
       organizationId,
       customer,
-      subscription: subscription ? this.toSubscriptionSummary(subscription, plan) : null,
+      subscription: subscription
+        ? this.toSubscriptionSummary(subscription, plan)
+        : null,
       planCode: plan.code,
       cadence: input.cadence ?? 'monthly',
       successUrl: input.successUrl ?? `${origin}/settings/billing`,
       cancelUrl: input.cancelUrl ?? `${origin}/settings/billing`,
     });
 
-    const usage = await this.buildUsageResponse(organizationId, plan, customer, await this.ensureSubscription(organizationId, customer.id, plan.id, plan.code));
+    const usage = await this.buildUsageResponse(
+      organizationId,
+      plan,
+      customer,
+      await this.ensureSubscription(
+        organizationId,
+        customer.id,
+        plan.id,
+        plan.code,
+      ),
+    );
 
     return {
       subscription: updatedSubscription,
@@ -175,7 +245,10 @@ export class BillingService {
     await this.billingProvider.handleWebhook({
       provider: 'manual',
       type: typeof payload.type === 'string' ? payload.type : 'billing.webhook',
-      id: typeof payload.id === 'string' ? payload.id : `billing_event_${Date.now()}`,
+      id:
+        typeof payload.id === 'string'
+          ? payload.id
+          : `billing_event_${Date.now()}`,
       createdAt: new Date().toISOString(),
       payload,
     });
@@ -188,10 +261,21 @@ export class BillingService {
     customer: BillingCustomerSummary,
     subscription: BillingSubscriptionSummary,
   ): Promise<BillingUsageResponse> {
-    const since = subscription.currentPeriodStart ? new Date(subscription.currentPeriodStart) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const usageRows = await this.usageRecordsRepository.listUsageByOrganization(organizationId, since);
-    const liveRepositories = await this.repositoriesRepository.findManyByOrganizationId(organizationId);
-    const liveSeats = await this.organizationMembershipsRepository.findManyByOrganizationId(organizationId);
+    const since = subscription.currentPeriodStart
+      ? new Date(subscription.currentPeriodStart)
+      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const usageRows = await this.usageRecordsRepository.listUsageByOrganization(
+      organizationId,
+      since,
+    );
+    const liveRepositories =
+      await this.repositoriesRepository.findManyByOrganizationId(
+        organizationId,
+      );
+    const liveSeats =
+      await this.organizationMembershipsRepository.findManyByOrganizationId(
+        organizationId,
+      );
 
     const usageEntries: BillingUsageEntry[] = usageRows.map((row) => ({
       resource: row.resource as BillingUsageEntry['resource'],
@@ -200,14 +284,25 @@ export class BillingService {
 
     usageEntries.push(
       { resource: 'repositories_connected', quantity: liveRepositories.length },
-      { resource: 'active_seats', quantity: liveSeats.filter((membership) => membership.status === 'active').length },
+      {
+        resource: 'active_seats',
+        quantity: liveSeats.filter(
+          (membership) => membership.status === 'active',
+        ).length,
+      },
     );
 
     const quota = buildQuotaSnapshot(plan, usageEntries);
     const liveCounts = {
       repositoriesConnected: liveRepositories.length,
-      activeSeats: liveSeats.filter((membership) => membership.status === 'active').length,
-      activeUsers: new Set(liveSeats.filter((membership) => membership.status === 'active').map((membership) => membership.userId)).size,
+      activeSeats: liveSeats.filter(
+        (membership) => membership.status === 'active',
+      ).length,
+      activeUsers: new Set(
+        liveSeats
+          .filter((membership) => membership.status === 'active')
+          .map((membership) => membership.userId),
+      ).size,
     };
 
     return {
@@ -216,40 +311,62 @@ export class BillingService {
       customer,
       resources: quota.resources,
       liveCounts,
-      hardLimitReached: quota.resources.some((resource) => resource.status === 'hard'),
-      softLimitReached: quota.resources.some((resource) => resource.status !== 'within'),
+      hardLimitReached: quota.resources.some(
+        (resource) => resource.status === 'hard',
+      ),
+      softLimitReached: quota.resources.some(
+        (resource) => resource.status !== 'within',
+      ),
     };
   }
 
-  private async ensureCustomer(organizationId: string, currency: string): Promise<BillingCustomerSummary> {
-    const existing = await this.billingCustomersRepository.findByOrganizationId(organizationId);
+  private async ensureCustomer(
+    organizationId: string,
+    currency: string,
+  ): Promise<BillingCustomerSummary> {
+    const existing =
+      await this.billingCustomersRepository.findByOrganizationId(
+        organizationId,
+      );
     if (existing) {
       return this.toCustomerSummary(existing);
     }
 
-    const organization = await this.organizationsRepository.findById(organizationId);
-    const created = await this.billingCustomersRepository.upsertForOrganization({
-      organizationId,
-      provider: 'manual',
-      providerCustomerId: null,
-      email: organization?.billingEmail ?? null,
-      name: organization?.name ?? null,
-      currency,
-      metadata: {
-        seededFrom: 'organization_lookup',
+    const organization =
+      await this.organizationsRepository.findById(organizationId);
+    const created = await this.billingCustomersRepository.upsertForOrganization(
+      {
+        organizationId,
+        provider: 'manual',
+        providerCustomerId: null,
+        email: organization?.billingEmail ?? null,
+        name: organization?.name ?? null,
+        currency,
+        metadata: {
+          seededFrom: 'organization_lookup',
+        },
       },
-    });
+    );
 
     return this.toCustomerSummary(created);
   }
 
-  private async ensurePricingPlanForOrganization(organizationId: string, requestedPlanCode?: string): Promise<BillingPlanSnapshot> {
+  private async ensurePricingPlanForOrganization(
+    organizationId: string,
+    requestedPlanCode?: string,
+  ): Promise<BillingPlanSnapshot> {
     const plans = await this.billingProvider.listPlans();
-    const organization = await this.organizationsRepository.findById(organizationId);
+    const organization =
+      await this.organizationsRepository.findById(organizationId);
     const requestedCode = requestedPlanCode ?? organization?.plan ?? 'free';
-    const selectedPlan = plans.find((plan) => plan.code === requestedCode) ?? plans[0] ?? defaultBillingPlans[0]!;
+    const selectedPlan =
+      plans.find((plan) => plan.code === requestedCode) ??
+      plans[0] ??
+      defaultBillingPlans[0];
 
-    const existing = await this.pricingPlansRepository.findByCode(selectedPlan.code);
+    const existing = await this.pricingPlansRepository.findByCode(
+      selectedPlan.code,
+    );
     if (!existing) {
       await this.pricingPlansRepository.upsertByCode({
         code: selectedPlan.code,
@@ -261,7 +378,10 @@ export class BillingService {
         cadence: selectedPlan.cadence,
         currency: selectedPlan.currency,
         monthlyPriceCents: selectedPlan.priceCents,
-        annualPriceCents: selectedPlan.priceCents <= 0 ? 0 : Math.round(selectedPlan.priceCents * 10),
+        annualPriceCents:
+          selectedPlan.priceCents <= 0
+            ? 0
+            : Math.round(selectedPlan.priceCents * 10),
         quotaRules: selectedPlan.quota,
         featured: selectedPlan.featured,
         active: selectedPlan.active,
@@ -275,10 +395,18 @@ export class BillingService {
     return selectedPlan;
   }
 
-  private async ensureSubscription(organizationId: string, customerId: string, pricingPlanId: string, planCode: string): Promise<BillingSubscriptionSummary> {
-    const existing = await this.subscriptionsRepository.findByOrganizationId(organizationId);
+  private async ensureSubscription(
+    organizationId: string,
+    customerId: string,
+    pricingPlanId: string,
+    planCode: string,
+  ): Promise<BillingSubscriptionSummary> {
+    const existing =
+      await this.subscriptionsRepository.findByOrganizationId(organizationId);
     if (existing) {
-      const plan = await this.pricingPlansRepository.findById(existing.pricingPlanId ?? pricingPlanId);
+      const plan = await this.pricingPlansRepository.findById(
+        existing.pricingPlanId ?? pricingPlanId,
+      );
       return this.toSubscriptionSummary(existing, plan ?? null);
     }
 
@@ -313,7 +441,10 @@ export class BillingService {
     return resolveFrontendOrigin();
   }
 
-  private toSubscriptionSummary(subscription: Subscription, plan: PlanLike): BillingSubscriptionSummary {
+  private toSubscriptionSummary(
+    subscription: Subscription,
+    plan: PlanLike,
+  ): BillingSubscriptionSummary {
     return {
       id: subscription.id,
       organizationId: subscription.organizationId,
@@ -323,7 +454,8 @@ export class BillingService {
       cadence: subscription.cadence as BillingSubscriptionSummary['cadence'],
       priceCents: plan?.monthlyPriceCents ?? plan?.priceCents ?? 0,
       currency: plan?.currency ?? 'usd',
-      currentPeriodStart: subscription.currentPeriodStart?.toISOString() ?? null,
+      currentPeriodStart:
+        subscription.currentPeriodStart?.toISOString() ?? null,
       currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
       trialEndsAt: subscription.trialEndsAt?.toISOString() ?? null,
       cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,

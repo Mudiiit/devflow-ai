@@ -1,6 +1,9 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import type { Request } from 'express';
-import { OrganizationMembershipsRepository, OrganizationsRepository } from '@devflow/database';
+import {
+  OrganizationMembershipsRepository,
+  OrganizationsRepository,
+} from '@devflow/database';
 
 @Injectable()
 export class OrganizationMemberGuard implements CanActivate {
@@ -10,7 +13,12 @@ export class OrganizationMemberGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const request = context.switchToHttp().getRequest<Request & { authSession?: { user?: { id: string } }; orgContext?: unknown }>();
+    const request = context.switchToHttp().getRequest<
+      Request & {
+        authSession?: { user?: { id: string } };
+        orgContext?: unknown;
+      }
+    >();
     const userId = request.authSession?.user?.id;
 
     if (!userId) {
@@ -19,7 +27,8 @@ export class OrganizationMemberGuard implements CanActivate {
 
     let organizationId = this.readOrganizationId(request);
     if (!organizationId) {
-      const memberships = await this.organizationMembershipsRepository.findManyByUserId(userId);
+      const memberships =
+        await this.organizationMembershipsRepository.findManyByUserId(userId);
       organizationId = memberships[0]?.organizationId ?? null;
     }
 
@@ -27,12 +36,17 @@ export class OrganizationMemberGuard implements CanActivate {
       return false;
     }
 
-    const organization = await this.organizationsRepository.findById(organizationId);
+    const organization =
+      await this.organizationsRepository.findById(organizationId);
     if (!organization) {
       return false;
     }
 
-    const membership = await this.organizationMembershipsRepository.findByOrganizationAndUser(organizationId, userId);
+    const membership =
+      await this.organizationMembershipsRepository.findByOrganizationAndUser(
+        organizationId,
+        userId,
+      );
     if (!membership || membership.status !== 'active') {
       return false;
     }
@@ -56,7 +70,8 @@ export class OrganizationMemberGuard implements CanActivate {
       return queryOrg;
     }
 
-    const paramsOrg = (request.params as Record<string, string> | undefined)?.organizationId;
+    const paramsOrg = (request.params as Record<string, string> | undefined)
+      ?.organizationId;
     if (paramsOrg && paramsOrg.length > 0) {
       return paramsOrg;
     }

@@ -1,5 +1,9 @@
 import { Module, OnApplicationShutdown, Injectable } from '@nestjs/common';
-import { createDatabaseClient, closeDatabaseConnection, type DatabaseClient } from '@devflow/database';
+import {
+  createDatabaseClient,
+  closeDatabaseConnection,
+  type DatabaseClient,
+} from '@devflow/database';
 import {
   ApiKeysRepository,
   AuditLogsRepository,
@@ -87,7 +91,8 @@ const repositoryProviders = [
   {
     provide: OrganizationMembershipsRepository,
     inject: [DATABASE_CLIENT],
-    useFactory: (db: DatabaseClient) => new OrganizationMembershipsRepository(db),
+    useFactory: (db: DatabaseClient) =>
+      new OrganizationMembershipsRepository(db),
   },
   {
     provide: OrganizationSettingsRepository,
@@ -172,6 +177,9 @@ const repositoryProviders = [
     },
     ...repositoryProviders,
   ],
-  exports: [DATABASE_CLIENT, ...repositoryProviders.map((provider) => provider.provide)],
+  exports: [
+    DATABASE_CLIENT,
+    ...repositoryProviders.map((provider) => provider.provide),
+  ],
 })
 export class DatabaseModule {}

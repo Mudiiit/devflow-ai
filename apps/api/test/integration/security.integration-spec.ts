@@ -1,7 +1,10 @@
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import type { INestApplication } from '@nestjs/common';
-import { assertTestDatabaseEnv, bootstrapTestApp } from '../helpers/test-bootstrap.js';
+import {
+  assertTestDatabaseEnv,
+  bootstrapTestApp,
+} from '../helpers/test-bootstrap.js';
 
 describe('API security integration', () => {
   let app: INestApplication<App>;
@@ -23,6 +26,8 @@ describe('API security integration', () => {
 
     expect(response.headers['x-content-type-options']).toBe('nosniff');
     expect(response.headers['x-frame-options']).toBe('DENY');
-    expect(response.headers['content-security-policy']).toContain("default-src 'self'");
+    expect(response.headers['content-security-policy']).toContain(
+      "default-src 'self'",
+    );
   });
 });

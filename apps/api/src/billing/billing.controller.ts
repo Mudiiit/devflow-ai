@@ -32,7 +32,13 @@ export class BillingController {
   @Post('checkout')
   async createCheckout(
     @CurrentOrganization() organization: { id: string },
-    @Body() body: { planCode: string; cadence?: 'monthly' | 'annual'; successUrl?: string; cancelUrl?: string },
+    @Body()
+    body: {
+      planCode: string;
+      cadence?: 'monthly' | 'annual';
+      successUrl?: string;
+      cancelUrl?: string;
+    },
   ) {
     return this.billingService.createCheckoutSession(organization.id, body);
   }
@@ -40,7 +46,13 @@ export class BillingController {
   @Post('subscription/change')
   async changeSubscription(
     @CurrentOrganization() organization: { id: string },
-    @Body() body: { planCode: string; cadence?: 'monthly' | 'annual'; successUrl?: string; cancelUrl?: string },
+    @Body()
+    body: {
+      planCode: string;
+      cadence?: 'monthly' | 'annual';
+      successUrl?: string;
+      cancelUrl?: string;
+    },
   ) {
     return this.billingService.changeSubscription(organization.id, body);
   }
@@ -50,7 +62,10 @@ export class BillingController {
     @CurrentOrganization() organization: { id: string },
     @Body() body: { returnUrl?: string },
   ) {
-    return this.billingService.createPortalSession(organization.id, body.returnUrl);
+    return this.billingService.createPortalSession(
+      organization.id,
+      body.returnUrl,
+    );
   }
 
   @Post('webhook')

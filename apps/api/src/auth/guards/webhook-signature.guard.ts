@@ -7,14 +7,24 @@ import { verifyHmacSha256Signature } from '../utils/webhook-verification.js';
 @Injectable()
 export class WebhookSignatureGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<Request & { body: Buffer }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { body: Buffer }>();
     const headerValue = request.headers[AUTH_WEBHOOK_SIGNATURE_HEADER];
     const signature = Array.isArray(headerValue) ? headerValue[0] : headerValue;
 
-    if (!signature || !serverEnv.GITHUB_WEBHOOK_SECRET || !Buffer.isBuffer(request.body)) {
+    if (
+      !signature ||
+      !serverEnv.GITHUB_WEBHOOK_SECRET ||
+      !Buffer.isBuffer(request.body)
+    ) {
       return false;
     }
 
-    return verifyHmacSha256Signature(request.body, signature, serverEnv.GITHUB_WEBHOOK_SECRET);
+    return verifyHmacSha256Signature(
+      request.body,
+      signature,
+      serverEnv.GITHUB_WEBHOOK_SECRET,
+    );
   }
 }

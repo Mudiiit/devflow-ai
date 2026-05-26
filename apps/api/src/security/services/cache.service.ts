@@ -1,9 +1,16 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
-import { createRedisConnection, isRedisConnectionEnabled, serverEnv } from '@devflow/config';
+import {
+  createRedisConnection,
+  isRedisConnectionEnabled,
+  serverEnv,
+} from '@devflow/config';
 
 @Injectable()
 export class CacheService implements OnApplicationShutdown {
-  private readonly memory = new Map<string, { value: string; expiresAt: number }>();
+  private readonly memory = new Map<
+    string,
+    { value: string; expiresAt: number }
+  >();
   private connection: any | null = null;
 
   constructor() {
@@ -12,15 +19,24 @@ export class CacheService implements OnApplicationShutdown {
     }
 
     try {
-      this.connection = createRedisConnection(serverEnv.REDIS_URL!, 'devflow-api-cache');
+      this.connection = createRedisConnection(
+        serverEnv.REDIS_URL,
+        'devflow-api-cache',
+      );
       if (this.connection && typeof this.connection.on === 'function') {
         this.connection.on('error', (error: unknown) => {
-          console.warn('[api] cache redis error, using memory fallback: %s', error instanceof Error ? error.message : String(error));
+          console.warn(
+            '[api] cache redis error, using memory fallback: %s',
+            error instanceof Error ? error.message : String(error),
+          );
         });
       }
     } catch (error) {
       this.connection = null;
-      console.warn('[api] cache redis initialization failed, using memory fallback: %s', error instanceof Error ? error.message : String(error));
+      console.warn(
+        '[api] cache redis initialization failed, using memory fallback: %s',
+        error instanceof Error ? error.message : String(error),
+      );
     }
   }
 
@@ -43,7 +59,11 @@ export class CacheService implements OnApplicationShutdown {
     return JSON.parse(entry.value) as T;
   }
 
-  async setJson(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  async setJson(
+    key: string,
+    value: unknown,
+    ttlSeconds: number,
+  ): Promise<void> {
     const serialized = JSON.stringify(value);
 
     if (this.connection) {

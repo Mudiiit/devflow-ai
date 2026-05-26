@@ -1,14 +1,25 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import {
+  CallHandler,
+  ExecutionContext,
+  Injectable,
+  NestInterceptor,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable, tap } from 'rxjs';
 import { UsageRecordsRepository } from '@devflow/database';
 
 @Injectable()
 export class BillingUsageInterceptor implements NestInterceptor {
-  constructor(private readonly usageRecordsRepository: UsageRecordsRepository) {}
+  constructor(
+    private readonly usageRecordsRepository: UsageRecordsRepository,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
-    const request = context.switchToHttp().getRequest<Request & { orgContext?: { organization?: { id: string } } }>();
+    const request = context
+      .switchToHttp()
+      .getRequest<
+        Request & { orgContext?: { organization?: { id: string } } }
+      >();
 
     return next.handle().pipe(
       tap({

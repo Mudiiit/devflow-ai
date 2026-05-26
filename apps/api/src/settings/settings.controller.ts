@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { Permissions } from '../auth/decorators/permissions.decorator.js';
 import { OrganizationPermissionGuard } from '../auth/guards/organization-permission.guard.js';
@@ -21,7 +29,9 @@ export class SettingsController {
   ) {}
 
   @Get('organization')
-  async getOrganizationSettings(@CurrentOrganization() organization: { id: string }) {
+  async getOrganizationSettings(
+    @CurrentOrganization() organization: { id: string },
+  ) {
     return this.settingsService.getOrganizationSettings(organization.id);
   }
 
@@ -31,11 +41,16 @@ export class SettingsController {
     @CurrentOrganization() organization: { id: string },
     @Body() body: Record<string, unknown>,
   ) {
-    return this.settingsService.updateOrganizationSettings(organization.id, body);
+    return this.settingsService.updateOrganizationSettings(
+      organization.id,
+      body,
+    );
   }
 
   @Get('repositories')
-  async getRepositorySettings(@CurrentOrganization() organization: { id: string }) {
+  async getRepositorySettings(
+    @CurrentOrganization() organization: { id: string },
+  ) {
     return this.settingsService.getRepositorySettings(organization.id);
   }
 
@@ -47,7 +62,11 @@ export class SettingsController {
     @Param('repositoryId') repositoryId: string,
     @Body() body: Record<string, unknown>,
   ) {
-    return this.settingsService.updateRepositorySettings(organization.id, repositoryId, body);
+    return this.settingsService.updateRepositorySettings(
+      organization.id,
+      repositoryId,
+      body,
+    );
   }
 
   @Post('secrets')

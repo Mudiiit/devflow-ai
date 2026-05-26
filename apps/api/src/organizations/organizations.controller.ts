@@ -15,7 +15,8 @@ export class OrganizationsController {
 
   @Get()
   async listOrganizations(@CurrentUser() user: { id: string }) {
-    const organizations = await this.organizationService.listOrganizationsForUser(user.id);
+    const organizations =
+      await this.organizationService.listOrganizationsForUser(user.id);
     return {
       userId: user.id,
       organizations,
@@ -24,7 +25,8 @@ export class OrganizationsController {
 
   @Get('default')
   async getDefaultOrganization(@CurrentUser() user: { id: string }) {
-    const organizations = await this.organizationService.listOrganizationsForUser(user.id);
+    const organizations =
+      await this.organizationService.listOrganizationsForUser(user.id);
     return {
       organization: organizations[0]?.organization ?? null,
       membership: organizations[0]?.membership ?? null,
@@ -40,8 +42,11 @@ export class OrganizationsController {
   @Get(':organizationId/members')
   @UseGuards(OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('organization.members.manage')
-  async getOrganizationMembers(@Param('organizationId') organizationId: string) {
-    const members = await this.organizationService.listOrganizationMembers(organizationId);
+  async getOrganizationMembers(
+    @Param('organizationId') organizationId: string,
+  ) {
+    const members =
+      await this.organizationService.listOrganizationMembers(organizationId);
     return { organizationId, members };
   }
 

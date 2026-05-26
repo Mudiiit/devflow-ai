@@ -1,4 +1,13 @@
-import { Controller, Get, Headers, Param, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Headers,
+  Param,
+  Post,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { NotificationsService } from './notifications.service.js';
@@ -14,7 +23,10 @@ export class NotificationsController {
     @Query('limit') limit: string | undefined,
   ) {
     const parsedLimit = limit === undefined ? 50 : Number(limit);
-    return this.notificationsService.getInbox(user.id, Number.isFinite(parsedLimit) ? parsedLimit : 50);
+    return this.notificationsService.getInbox(
+      user.id,
+      Number.isFinite(parsedLimit) ? parsedLimit : 50,
+    );
   }
 
   @Get('unread-count')

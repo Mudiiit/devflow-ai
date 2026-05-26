@@ -29,6 +29,8 @@ export const assertTestDatabaseEnv = (): void => {
   }
 
   if (!/test/i.test(databaseUrl)) {
-    throw new Error('Integration tests must target a test database URL containing "test"');
+    throw new Error(
+      'Integration tests must target a test database URL containing "test"',
+    );
   }
 };

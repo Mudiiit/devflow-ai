@@ -38,8 +38,7 @@ import { TransformInterceptor } from './common/transform.interceptor.js';
       useClass: class RateLimitRedisLifecycle implements OnApplicationShutdown {
         async onApplicationShutdown(): Promise<void> {
           try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const redis = (global as any).__devflow_api_rate_limit_redis as any | undefined;
+            const redis = (global as any).__devflow_api_rate_limit_redis;
             if (redis && typeof redis.quit === 'function') {
               await redis.quit();
             }
