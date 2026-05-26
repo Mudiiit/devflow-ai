@@ -157,8 +157,8 @@ export default function JobMonitorPage() {
       setData(snapshot);
       setError(null);
       setLastUpdatedAt(new Date().toISOString());
-    } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Failed to load job monitoring data.");
+    } catch {
+      setError("Unable to load job monitoring data.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);

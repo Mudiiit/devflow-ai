@@ -184,21 +184,19 @@ export default function NotificationsInboxPage() {
         eventSource.onerror = () => {
           setIsStreamConnected(false);
           if (!cancelled) {
-            setError((previous) => previous ?? "Realtime connection interrupted. Trying to recover...");
+            setError((previous) => previous ?? "Temporary server issue.");
           }
         };
 
         eventSource.onopen = () => {
           setIsStreamConnected(true);
           if (!cancelled) {
-            setError((previous) =>
-              previous === "Realtime connection interrupted. Trying to recover..." ? null : previous,
-            );
+            setError(null);
           }
         };
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : "Failed to load notifications.");
+          setError("Unable to load notifications.");
         }
       } finally {
         if (!cancelled) {
@@ -240,8 +238,9 @@ export default function NotificationsInboxPage() {
 
     try {
       await fetchApi<unknown>(`/notifications/${notificationId}/read`, { method: "POST" });
-    } catch (markError) {
-      setError(markError instanceof Error ? markError.message : "Failed to mark notification as read.");
+      setError(null);
+    } catch {
+      setError("Unable to update notification state.");
       try {
         await hydrateInbox();
       } catch {
@@ -265,9 +264,10 @@ export default function NotificationsInboxPage() {
 
     try {
       await fetchApi<unknown>("/notifications/read-all", { method: "POST" });
-    } catch (markError) {
+      setError(null);
+    } catch {
       setInbox(snapshot);
-      setError(markError instanceof Error ? markError.message : "Failed to mark all notifications as read.");
+      setError("Unable to update notification state.");
     } finally {
       setIsMarkingAll(false);
     }

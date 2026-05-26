@@ -77,7 +77,7 @@ async function fetchOrganizationContext(
       const response = await fetch(`${resolveApiBase()}/organizations/default`, {
         method: "GET",
         headers,
-        credentials: init?.cookieHeader ? "omit" : "include",
+        credentials: "include",
         cache: "no-store",
       });
 
@@ -175,8 +175,7 @@ async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> 
   });
 
   if (!response.ok) {
-    const message = await response.text().catch(() => "API request failed");
-    throw new Error(message || `Request failed: ${response.status}`);
+    throw new Error(`Request failed: ${response.status}`);
   }
 
   return (await response.json()) as T;
@@ -193,6 +192,7 @@ export async function fetchServerApi<T>(path: string, cookieHeader?: string, ini
   return fetchJson<T>(path, {
     ...init,
     cookieHeader,
+    credentials: "include",
   });
 }
 

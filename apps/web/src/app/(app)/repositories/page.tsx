@@ -2,6 +2,9 @@ import Link from "next/link";
 import { Badge, Card, SectionTitle } from "@/components/ui";
 import { getGitHubInstallationUrl, getRepositoryOverview, type RepositoryOverviewItem } from "@/lib/github-integration";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function formatTimestamp(value: string | null): string {
   if (!value) {
     return "Never synced";
@@ -55,8 +58,8 @@ export default async function RepositoriesPage() {
 
     repositories = overview.repositories;
     installationUrl = installUrl;
-  } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Failed to load repositories.";
+  } catch {
+    errorMessage = "Unable to load repositories.";
   }
 
   const avgHealth = repositories.length > 0

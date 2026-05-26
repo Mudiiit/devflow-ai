@@ -2,6 +2,9 @@ import { Badge, Card, SectionTitle, Sparkline, StatCard } from "@/components/ui"
 import { formatNumber } from "@/lib/format";
 import { getRepositoryOverview, type RepositoryOverviewItem } from "@/lib/github-integration";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 function formatTimestamp(value: string | null): string {
   if (!value) {
     return "Never synced";
@@ -36,8 +39,8 @@ export default async function DashboardPage() {
 
   try {
     repositories = (await getRepositoryOverview()).repositories;
-  } catch (error) {
-    errorMessage = error instanceof Error ? error.message : "Failed to load repository data.";
+  } catch {
+    errorMessage = "Unable to load dashboard data.";
   }
 
   const repositoryCount = repositories.length;
