@@ -144,6 +144,30 @@ export class OrganizationService {
       }));
   }
 
+  async resolveDefaultOrganizationForUser(userId: string) {
+    const memberships =
+      await this.organizationMembershipsRepository.findManyByUserId(userId);
+
+    for (const membership of memberships) {
+      if (membership.status !== 'active') {
+        continue;
+      }
+
+      const organization = await this.organizationsRepository.findById(
+        membership.organizationId,
+      );
+
+      if (organization) {
+        return {
+          membership,
+          organization,
+        };
+      }
+    }
+
+    return null;
+  }
+
   async getOrganizationById(organizationId: string) {
     return this.organizationsRepository.findById(organizationId);
   }

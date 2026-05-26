@@ -4,12 +4,14 @@ import {
   OrganizationMembershipsRepository,
   OrganizationsRepository,
 } from '@devflow/database';
+import { OrganizationService } from '../organizations.service.js';
 
 @Injectable()
 export class OrganizationMemberGuard implements CanActivate {
   constructor(
     private readonly organizationsRepository: OrganizationsRepository,
     private readonly organizationMembershipsRepository: OrganizationMembershipsRepository,
+    private readonly organizationService: OrganizationService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -25,15 +27,19 @@ export class OrganizationMemberGuard implements CanActivate {
       return false;
     }
 
-    let organizationId = this.readOrganizationId(request);
+    const organizationId = this.readOrganizationId(request);
     if (!organizationId) {
-      const memberships =
-        await this.organizationMembershipsRepository.findManyByUserId(userId);
-      organizationId = memberships[0]?.organizationId ?? null;
-    }
+      const defaultOrganization =
+        await this.organizationService.resolveDefaultOrganizationForUser(
+          userId,
+        );
 
-    if (!organizationId) {
-      return false;
+      if (!defaultOrganization) {
+        return false;
+      }
+
+      request.orgContext = defaultOrganization;
+      return true;
     }
 
     const organization =
@@ -60,12 +66,16 @@ export class OrganizationMemberGuard implements CanActivate {
   }
 
   private readOrganizationId(request: Request): string | null {
-    const headerValue = request.headers['x-org-id'];
+    const headerValue =
+      request.headers['x-org-id'] ?? request.headers['x-workspace-id'];
     if (typeof headerValue === 'string' && headerValue.length > 0) {
       return headerValue;
     }
 
-    const queryOrg = request.query.orgId ?? request.query.organizationId;
+    const queryOrg =
+      request.query.orgId ??
+      request.query.organizationId ??
+      request.query.workspaceId;
     if (typeof queryOrg === 'string' && queryOrg.length > 0) {
       return queryOrg;
     }
@@ -74,6 +84,13 @@ export class OrganizationMemberGuard implements CanActivate {
       ?.organizationId;
     if (paramsOrg && paramsOrg.length > 0) {
       return paramsOrg;
+    }
+
+    const paramsWorkspaceId = (
+      request.params as Record<string, string> | undefined
+    )?.workspaceId;
+    if (paramsWorkspaceId && paramsWorkspaceId.length > 0) {
+      return paramsWorkspaceId;
     }
 
     return null;

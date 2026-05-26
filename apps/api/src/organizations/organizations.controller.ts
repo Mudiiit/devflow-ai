@@ -25,11 +25,12 @@ export class OrganizationsController {
 
   @Get('default')
   async getDefaultOrganization(@CurrentUser() user: { id: string }) {
-    const organizations =
-      await this.organizationService.listOrganizationsForUser(user.id);
+    const defaultOrganization =
+      await this.organizationService.resolveDefaultOrganizationForUser(user.id);
+
     return {
-      organization: organizations[0]?.organization ?? null,
-      membership: organizations[0]?.membership ?? null,
+      organization: defaultOrganization?.organization ?? null,
+      membership: defaultOrganization?.membership ?? null,
     };
   }
 
