@@ -1,8 +1,24 @@
-import { Controller, Get, Inject, Post, Query, Req, Res, UseGuards, UseInterceptors } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
 import type { Response, Request } from 'express';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
 import type { DatabaseClient } from '@devflow/database';
-import { AUTH_ACCESS_TOKEN_COOKIE, AUTH_CSRF_COOKIE, AUTH_COOKIE_PATH, AUTH_REFRESH_TOKEN_COOKIE, resolveAuthCookieSameSite } from '../auth.constants.js';
+import {
+  AUTH_ACCESS_TOKEN_COOKIE,
+  AUTH_CSRF_COOKIE,
+  AUTH_COOKIE_PATH,
+  AUTH_REFRESH_TOKEN_COOKIE,
+  resolveAuthCookieSameSite,
+} from '../auth.constants.js';
 import { CurrentUser } from '../decorators/current-user.decorator.js';
 import { RateLimit } from '../decorators/rate-limit.decorator.js';
 import { JwtAuthGuard } from '../guards/jwt-auth.guard.js';
@@ -14,7 +30,11 @@ import { OauthStateService } from '../services/oauth-state.service.js';
 import { SessionService } from '../services/session.service.js';
 import { GitHubOAuthService } from '../services/github-oauth.service.js';
 import { OrganizationService } from '../../organizations/organizations.service.js';
-import { isSecureFrontendOrigin, resolveFrontendOrigin } from '../../common/public-origin.js';
+import {
+  isSecureFrontendOrigin,
+  resolveFrontendOrigin,
+  resolveSharedCookieDomain,
+} from '../../common/public-origin.js';
 
 @Controller('auth')
 @UseInterceptors(AuthSessionInterceptor)
@@ -31,14 +51,30 @@ export class AuthController {
   @Get('github/login')
   @UseGuards(RateLimitGuard)
   @RateLimit({ limit: 10, windowMs: 60_000 })
-  async login(@Query('returnTo') returnTo: string | undefined, @Res() response: Response): Promise<void> {
+  async login(
+    @Query('returnTo') returnTo: string | undefined,
+    @Res() response: Response,
+  ): Promise<void> {
     try {
-      const { state } = await this.withTimeout(this.oauthStateService.createState(returnTo), 5000, 'oauth state creation');
-      const url = this.githubOAuthStrategy.buildAuthorizationUrl(state, returnTo);
+      const { state } = await this.withTimeout(
+        this.oauthStateService.createState(returnTo),
+        5000,
+        'oauth state creation',
+      );
+      const url = this.githubOAuthStrategy.buildAuthorizationUrl(
+        state,
+        returnTo,
+      );
       response.redirect(url.toString());
       return;
     } catch (error) {
-      response.status(error instanceof Error && error.message.includes('timed out') ? 504 : 500).json({ message: 'GitHub login is temporarily unavailable' });
+      response
+        .status(
+          error instanceof Error && error.message.includes('timed out')
+            ? 504
+            : 500,
+        )
+        .json({ message: 'GitHub login is temporarily unavailable' });
       return;
     }
   }
@@ -53,13 +89,18 @@ export class AuthController {
     @Req() request: Request,
   ): Promise<void> {
     if (!code || !state) {
-      response.status(400).json({ message: 'Missing GitHub OAuth code or state' });
+      response
+        .status(400)
+        .json({ message: 'Missing GitHub OAuth code or state' });
       return;
     }
 
     try {
-      const returnTo = (await this.oauthStateService.consumeState(state)) ?? resolveFrontendOrigin();
-      const accessToken = await this.githubOAuthStrategy.exchangeCodeForToken(code);
+      const returnTo =
+        (await this.oauthStateService.consumeState(state)) ??
+        resolveFrontendOrigin();
+      const accessToken =
+        await this.githubOAuthStrategy.exchangeCodeForToken(code);
       const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
       const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
       await this.organizationService.ensurePersonalOrganizationForUser({
@@ -85,7 +126,12 @@ export class AuthController {
         },
       );
 
-      this.setAuthCookies(response, session.accessToken, session.refreshToken, session.csrfToken);
+      this.setAuthCookies(
+        response,
+        session.accessToken,
+        session.refreshToken,
+        session.csrfToken,
+      );
       response.redirect(returnTo);
     } catch (error) {
       response.status(500).json({ message: 'GitHub OAuth callback failed' });
@@ -97,7 +143,9 @@ export class AuthController {
   async session(@CurrentUser() user: unknown, @Req() request: Request) {
     return {
       user,
-      session: (request as Request & { authSession?: { session?: unknown } }).authSession?.session ?? null,
+      session:
+        (request as Request & { authSession?: { session?: unknown } })
+          .authSession?.session ?? null,
     };
   }
 
@@ -110,26 +158,44 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(CsrfGuard, RateLimitGuard)
   @RateLimit({ limit: 30, windowMs: 60_000 })
-  async refresh(@Req() request: Request, @Res() response: Response): Promise<void> {
-    const refreshToken = this.readCookie(request.headers.cookie ?? '', AUTH_REFRESH_TOKEN_COOKIE);
-    const csrfToken = this.readCookie(request.headers.cookie ?? '', AUTH_CSRF_COOKIE);
+  async refresh(
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    const refreshToken = this.readCookie(
+      request.headers.cookie ?? '',
+      AUTH_REFRESH_TOKEN_COOKIE,
+    );
+    const csrfToken = this.readCookie(
+      request.headers.cookie ?? '',
+      AUTH_CSRF_COOKIE,
+    );
 
     if (!refreshToken || !csrfToken) {
       response.status(401).json({ message: 'Missing refresh session cookies' });
       return;
     }
 
-    const result = await this.sessionService.refreshSession(refreshToken, csrfToken, {
-      ipAddress: request.ip,
-      userAgent: request.headers['user-agent'] ?? null,
-    });
+    const result = await this.sessionService.refreshSession(
+      refreshToken,
+      csrfToken,
+      {
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? null,
+      },
+    );
 
     if (!result) {
       response.status(401).json({ message: 'Invalid refresh session' });
       return;
     }
 
-    this.setAuthCookies(response, result.accessToken, result.refreshToken, result.csrfToken);
+    this.setAuthCookies(
+      response,
+      result.accessToken,
+      result.refreshToken,
+      result.csrfToken,
+    );
     response.json({
       user: result.session.user,
       sessionId: result.session.session.id,
@@ -139,8 +205,14 @@ export class AuthController {
   @Post('logout')
   @UseGuards(CsrfGuard, RateLimitGuard)
   @RateLimit({ limit: 30, windowMs: 60_000 })
-  async logout(@Req() request: Request, @Res() response: Response): Promise<void> {
-    const refreshToken = this.readCookie(request.headers.cookie ?? '', AUTH_REFRESH_TOKEN_COOKIE);
+  async logout(
+    @Req() request: Request,
+    @Res() response: Response,
+  ): Promise<void> {
+    const refreshToken = this.readCookie(
+      request.headers.cookie ?? '',
+      AUTH_REFRESH_TOKEN_COOKIE,
+    );
 
     if (refreshToken) {
       await this.sessionService.revokeSessionByRefreshToken(refreshToken);
@@ -150,12 +222,19 @@ export class AuthController {
     response.status(204).send();
   }
 
-  private setAuthCookies(response: Response, accessToken: string, refreshToken: string, csrfToken: string): void {
+  private setAuthCookies(
+    response: Response,
+    accessToken: string,
+    refreshToken: string,
+    csrfToken: string,
+  ): void {
+    const sharedCookieDomain = resolveSharedCookieDomain();
     const cookieBase = {
       httpOnly: true,
       secure: this.isSecureCookiesEnabled(),
       sameSite: resolveAuthCookieSameSite(),
       path: AUTH_COOKIE_PATH,
+      ...(sharedCookieDomain ? { domain: sharedCookieDomain } : {}),
     } as const;
 
     response.cookie(AUTH_ACCESS_TOKEN_COOKIE, accessToken, {
@@ -175,9 +254,15 @@ export class AuthController {
   }
 
   private clearAuthCookies(response: Response): void {
-    response.clearCookie(AUTH_ACCESS_TOKEN_COOKIE, { path: AUTH_COOKIE_PATH });
-    response.clearCookie(AUTH_REFRESH_TOKEN_COOKIE, { path: AUTH_COOKIE_PATH });
-    response.clearCookie(AUTH_CSRF_COOKIE, { path: AUTH_COOKIE_PATH });
+    const sharedCookieDomain = resolveSharedCookieDomain();
+    const cookieOptions = {
+      path: AUTH_COOKIE_PATH,
+      ...(sharedCookieDomain ? { domain: sharedCookieDomain } : {}),
+    } as const;
+
+    response.clearCookie(AUTH_ACCESS_TOKEN_COOKIE, cookieOptions);
+    response.clearCookie(AUTH_REFRESH_TOKEN_COOKIE, cookieOptions);
+    response.clearCookie(AUTH_CSRF_COOKIE, cookieOptions);
   }
 
   private readCookie(cookieHeader: string, name: string): string | null {
@@ -195,7 +280,11 @@ export class AuthController {
     return isSecureFrontendOrigin();
   }
 
-  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    label: string,
+  ): Promise<T> {
     let timeoutHandle: NodeJS.Timeout | undefined;
     let timedOut = false;
 
@@ -204,7 +293,11 @@ export class AuthController {
         (value) => value,
         (error) => {
           if (timedOut) {
-            console.warn('[api] %s rejected after timeout: %s', label, error instanceof Error ? error.message : String(error));
+            console.warn(
+              '[api] %s rejected after timeout: %s',
+              label,
+              error instanceof Error ? error.message : String(error),
+            );
             return undefined as T;
           }
 
