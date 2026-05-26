@@ -17,32 +17,37 @@ import { DashboardService } from './dashboard.service.js';
 import { parsePagination } from '../common/query/pagination.js';
 
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('overview')
-  @Permissions('analytics.read')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard)
   async getOverview(
-    @CurrentOrganization() organization: { id: string },
+    @CurrentOrganization() organization: { id: string } | null,
     @Query('window') window: string | undefined,
   ) {
-    return this.dashboardService.getOverview(organization.id, window);
+    return this.dashboardService.getOverview(organization?.id ?? null, window);
   }
 
   @Get('repositories')
-  @Permissions('analytics.read')
-  async getRepositories(@CurrentOrganization() organization: { id: string }) {
-    return this.dashboardService.getRepositoriesOverview(organization.id);
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard)
+  async getRepositories(
+    @CurrentOrganization() organization: { id: string } | null,
+  ) {
+    return this.dashboardService.getRepositoriesOverview(
+      organization?.id ?? null,
+    );
   }
 
   @Get('pull-requests')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getPullRequests(@CurrentOrganization() organization: { id: string }) {
     return this.dashboardService.getPullRequestsOverview(organization.id);
   }
 
   @Get('reviews')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getReviewHistory(
     @CurrentOrganization() organization: { id: string },
@@ -75,6 +80,7 @@ export class DashboardController {
   }
 
   @Get('jobs')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getJobMonitoring(
     @CurrentOrganization() organization: { id: string },
@@ -88,6 +94,7 @@ export class DashboardController {
   }
 
   @Get('reviews/:reviewJobId')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('review.read')
   async getReviewDetail(
     @CurrentOrganization() organization: { id: string },
@@ -97,6 +104,7 @@ export class DashboardController {
   }
 
   @Post('reviews/:reviewJobId/retry')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('review.write')
   async retryReview(
     @CurrentOrganization() organization: { id: string },
@@ -111,24 +119,28 @@ export class DashboardController {
   }
 
   @Get('analytics')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getAnalytics(@CurrentOrganization() organization: { id: string }) {
     return this.dashboardService.getAnalytics(organization.id);
   }
 
   @Get('activity')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getActivity(@CurrentOrganization() organization: { id: string }) {
     return this.dashboardService.getRecentActivity(organization.id);
   }
 
   @Get('health')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('analytics.read')
   async getHealth(@CurrentOrganization() organization: { id: string }) {
     return this.dashboardService.getRepositoryHealth(organization.id);
   }
 
   @Post('settings/strictness')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('settings.manage')
   async updateStrictness(
     @CurrentOrganization() organization: { id: string },
@@ -141,6 +153,7 @@ export class DashboardController {
   }
 
   @Get('admin/analytics')
+  @UseGuards(JwtAuthGuard, OrganizationMemberGuard, OrganizationPermissionGuard)
   @Permissions('admin.analytics.read')
   async getAdminAnalytics(@CurrentOrganization() organization: { id: string }) {
     return this.dashboardService.getAdminAnalytics(organization.id);

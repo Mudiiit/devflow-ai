@@ -23,20 +23,24 @@ export class JwtAuthGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<Request & { authSession?: unknown }>();
-    const token = this.extractToken(request);
+    const tokenDetails = this.extractToken(request);
 
-    if (!token) {
+    if (!tokenDetails.token) {
       this.logger.event('warn', 'auth.session.missing', {
         path: request.originalUrl ?? request.url,
         method: request.method,
         hasAuthorization: Boolean(request.headers.authorization),
         hasCookieHeader: Boolean(request.headers.cookie),
+        tokenPresent: false,
+        tokenSource: tokenDetails.source,
       });
 
       throw new UnauthorizedException('Authentication required');
     }
 
-    const session = await this.sessionService.authenticateAccessToken(token);
+    const session = await this.sessionService.authenticateAccessToken(
+      tokenDetails.token,
+    );
 
     if (!session) {
       this.logger.event('warn', 'auth.session.invalid', {
@@ -44,26 +48,48 @@ export class JwtAuthGuard implements CanActivate {
         method: request.method,
         hasAuthorization: Boolean(request.headers.authorization),
         hasCookieHeader: Boolean(request.headers.cookie),
+        tokenPresent: true,
+        tokenSource: tokenDetails.source,
       });
 
       throw new UnauthorizedException('Invalid or expired session');
     }
 
+    this.logger.event('info', 'auth.session.valid', {
+      path: request.originalUrl ?? request.url,
+      method: request.method,
+      userId: session.user.id,
+      sessionId: session.session.id,
+      hasAuthorization: Boolean(request.headers.authorization),
+      hasCookieHeader: Boolean(request.headers.cookie),
+      tokenPresent: true,
+      tokenSource: tokenDetails.source,
+    });
+
     request.authSession = session;
     return true;
   }
 
-  private extractToken(request: Request): string | null {
+  private extractToken(request: Request): {
+    token: string | null;
+    source: 'authorization' | 'cookie' | 'missing';
+  } {
     const authorization = request.headers.authorization;
     if (authorization?.startsWith(AUTH_BEARER_PREFIX)) {
-      return authorization.slice(AUTH_BEARER_PREFIX.length).trim();
+      return {
+        token: authorization.slice(AUTH_BEARER_PREFIX.length).trim(),
+        source: 'authorization',
+      };
     }
 
     const cookieToken = this.readCookie(
       request.headers.cookie ?? '',
       AUTH_ACCESS_TOKEN_COOKIE,
     );
-    return cookieToken ?? null;
+    return {
+      token: cookieToken ?? null,
+      source: cookieToken ? 'cookie' : 'missing',
+    };
   }
 
   private readCookie(cookieHeader: string, name: string): string | null {

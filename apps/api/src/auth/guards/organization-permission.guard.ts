@@ -36,15 +36,20 @@ export class OrganizationPermissionGuard implements CanActivate {
       .switchToHttp()
       .getRequest<Request & { orgContext?: OrganizationContext }>();
     const membership = request.orgContext?.membership;
+    const userId = (request as Request & { authSession?: { user?: { id: string } } }).authSession?.user?.id ?? null;
+    const organizationId = (request as Request & { orgContext?: { organization?: { id: string } } }).orgContext?.organization?.id ?? null;
 
     if (!membership || membership.status !== 'active' || !membership.role) {
       this.logger.event('warn', 'organization.permission.missing', {
         path: request.originalUrl ?? request.url,
         method: request.method,
+        userId,
+        organizationId,
         hasMembership: Boolean(membership),
         membershipStatus: membership?.status ?? null,
         role: membership?.role ?? null,
         requiredPermissions,
+        guardOutcome: 'denied',
       });
 
       throw new ForbiddenException('Organization permission required');
@@ -58,12 +63,25 @@ export class OrganizationPermissionGuard implements CanActivate {
       this.logger.event('warn', 'organization.permission.denied', {
         path: request.originalUrl ?? request.url,
         method: request.method,
+        userId,
+        organizationId,
         role: membership.role,
         requiredPermissions,
+        guardOutcome: 'denied',
       });
 
       throw new ForbiddenException('Organization permission denied');
     }
+
+    this.logger.event('info', 'organization.permission.allowed', {
+      path: request.originalUrl ?? request.url,
+      method: request.method,
+      userId,
+      organizationId,
+      role: membership.role,
+      requiredPermissions,
+      guardOutcome: 'allowed',
+    });
 
     return true;
   }

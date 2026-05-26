@@ -24,17 +24,20 @@ export class OrganizationMemberGuard implements CanActivate {
       }
     >();
     const userId = request.authSession?.user?.id;
+    const organizationContext = this.readOrganizationContext(request);
 
     if (!userId) {
       this.logger.event('warn', 'organization.context.missing_user', {
         path: request.originalUrl ?? request.url,
         method: request.method,
+        organizationId: organizationContext.organizationId,
+        workspaceId: organizationContext.workspaceId,
       });
 
       throw new UnauthorizedException('Authentication required');
     }
 
-    const organizationId = this.readOrganizationId(request);
+    const organizationId = organizationContext.organizationId;
     if (!organizationId) {
       const defaultOrganization =
         await this.organizationService.resolveDefaultOrganizationForUser(
@@ -42,14 +45,37 @@ export class OrganizationMemberGuard implements CanActivate {
         );
 
       if (!defaultOrganization) {
+        const dashboardFallbackAllowed = this.isDashboardFallbackRoute(request);
         this.logger.event('warn', 'organization.context.missing', {
           path: request.originalUrl ?? request.url,
           method: request.method,
           userId,
+          organizationId: null,
+          workspaceId: organizationContext.workspaceId,
+          resolutionSource: organizationContext.source,
+          guardOutcome: dashboardFallbackAllowed ? 'allowed_empty' : 'denied',
         });
+
+        if (dashboardFallbackAllowed) {
+          request.orgContext = {
+            organization: null,
+            membership: null,
+          };
+
+          return true;
+        }
 
         throw new ForbiddenException('Active organization required');
       }
+
+      this.logger.event('info', 'organization.context.resolved', {
+        path: request.originalUrl ?? request.url,
+        method: request.method,
+        userId,
+        organizationId: defaultOrganization.organization.id,
+        workspaceId: defaultOrganization.organization.id,
+        resolutionSource: 'default',
+      });
 
       request.orgContext = defaultOrganization;
       return true;
@@ -63,6 +89,8 @@ export class OrganizationMemberGuard implements CanActivate {
         method: request.method,
         userId,
         organizationId,
+        workspaceId: organizationContext.workspaceId,
+        resolutionSource: organizationContext.source,
       });
 
       throw new ForbiddenException('Organization not found');
@@ -80,10 +108,21 @@ export class OrganizationMemberGuard implements CanActivate {
         userId,
         organizationId,
         membershipStatus: membership?.status ?? null,
+        workspaceId: organizationContext.workspaceId,
+        resolutionSource: organizationContext.source,
       });
 
       throw new ForbiddenException('Organization access denied');
     }
+
+    this.logger.event('info', 'organization.context.resolved', {
+      path: request.originalUrl ?? request.url,
+      method: request.method,
+      userId,
+      organizationId,
+      workspaceId: organizationContext.workspaceId,
+      resolutionSource: organizationContext.source,
+    });
 
     request.orgContext = {
       organization,
@@ -93,11 +132,29 @@ export class OrganizationMemberGuard implements CanActivate {
     return true;
   }
 
-  private readOrganizationId(request: Request): string | null {
+  private readOrganizationContext(request: Request): {
+    organizationId: string | null;
+    workspaceId: string | null;
+    source:
+      | 'header:x-org-id'
+      | 'header:x-workspace-id'
+      | 'query:orgId'
+      | 'query:organizationId'
+      | 'query:workspaceId'
+      | 'param:organizationId'
+      | 'param:workspaceId'
+      | 'missing';
+  } {
     const headerValue =
       request.headers['x-org-id'] ?? request.headers['x-workspace-id'];
     if (typeof headerValue === 'string' && headerValue.length > 0) {
-      return headerValue;
+      return {
+        organizationId: headerValue,
+        workspaceId: headerValue,
+        source: request.headers['x-org-id']
+          ? 'header:x-org-id'
+          : 'header:x-workspace-id',
+      };
     }
 
     const queryOrg =
@@ -105,22 +162,52 @@ export class OrganizationMemberGuard implements CanActivate {
       request.query.organizationId ??
       request.query.workspaceId;
     if (typeof queryOrg === 'string' && queryOrg.length > 0) {
-      return queryOrg;
+      return {
+        organizationId: queryOrg,
+        workspaceId: queryOrg,
+        source: request.query.orgId
+          ? 'query:orgId'
+          : request.query.organizationId
+            ? 'query:organizationId'
+            : 'query:workspaceId',
+      };
     }
 
     const paramsOrg = (request.params as Record<string, string> | undefined)
       ?.organizationId;
     if (paramsOrg && paramsOrg.length > 0) {
-      return paramsOrg;
+      return {
+        organizationId: paramsOrg,
+        workspaceId: paramsOrg,
+        source: 'param:organizationId',
+      };
     }
 
     const paramsWorkspaceId = (
       request.params as Record<string, string> | undefined
     )?.workspaceId;
     if (paramsWorkspaceId && paramsWorkspaceId.length > 0) {
-      return paramsWorkspaceId;
+      return {
+        organizationId: paramsWorkspaceId,
+        workspaceId: paramsWorkspaceId,
+        source: 'param:workspaceId',
+      };
     }
 
-    return null;
+    return {
+      organizationId: null,
+      workspaceId: null,
+      source: 'missing',
+    };
+  }
+
+  private isDashboardFallbackRoute(request: Request): boolean {
+    const path = request.originalUrl ?? request.url;
+    return request.method === 'GET' && (
+      path === '/dashboard/overview' ||
+      path === '/dashboard/repositories' ||
+      path.startsWith('/dashboard/overview?') ||
+      path.startsWith('/dashboard/repositories?')
+    );
   }
 }

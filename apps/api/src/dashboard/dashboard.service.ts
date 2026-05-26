@@ -32,7 +32,17 @@ export class DashboardService {
     private readonly logger: StructuredLoggerService,
   ) {}
 
-  async getOverview(organizationId: string, window = '14d') {
+  async getOverview(organizationId: string | null | undefined, window = '14d') {
+    if (!organizationId) {
+      this.logger.event('info', 'dashboard.overview.degraded', {
+        organizationId: null,
+        window,
+        reason: 'missing_org_context',
+      });
+
+      return this.emptyOverview();
+    }
+
     const cacheKey = `dashboard:overview:${organizationId}:${window}`;
     const cached =
       await this.cacheService.getJson<
@@ -45,6 +55,77 @@ export class DashboardService {
     const result = await this.buildOverview(organizationId, window);
     await this.cacheService.setJson(cacheKey, result, 30);
     return result;
+  }
+
+  async getRepositoriesOverview(organizationId: string | null | undefined) {
+    if (!organizationId) {
+      this.logger.event('info', 'dashboard.repositories.degraded', {
+        organizationId: null,
+        reason: 'missing_org_context',
+      });
+
+      return { repositories: [] };
+    }
+
+    const [repoRows, metricsRows] = await Promise.all([
+      this.safeDashboardQuery(
+        'repositories.list',
+        { organizationId },
+        [],
+        () => this.db
+          .select({
+            id: repositories.id,
+            name: repositories.name,
+            fullName: repositories.fullName,
+            syncState: repositories.syncState,
+            language: repositories.language,
+            lastSyncedAt: repositories.lastSyncedAt,
+          })
+          .from(repositories)
+          .where(eq(repositories.organizationId, organizationId)),
+      ),
+      this.safeDashboardQuery(
+        'repositories.metrics',
+        { organizationId },
+        [],
+        () => this.db
+          .select({
+            repositoryId: reviewMetrics.repositoryId,
+            riskScore: reviewMetrics.riskScore,
+            confidenceScore: reviewMetrics.confidenceScore,
+            publishedAt: reviewMetrics.publishedAt,
+          })
+          .from(reviewMetrics)
+          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
+          .where(eq(repositories.organizationId, organizationId)),
+      ),
+    ]);
+
+    const latestMetricByRepo = new Map<string, (typeof metricsRows)[number]>();
+    for (const metric of metricsRows) {
+      const existing = latestMetricByRepo.get(metric.repositoryId);
+      if (
+        !existing ||
+        (metric.publishedAt &&
+          existing.publishedAt &&
+          metric.publishedAt > existing.publishedAt)
+      ) {
+        latestMetricByRepo.set(metric.repositoryId, metric);
+      }
+    }
+
+    return {
+      repositories: repoRows.map((repo) => {
+        const metric = latestMetricByRepo.get(repo.id);
+        const healthScore = metric ? Math.max(0, 100 - metric.riskScore) : 92;
+        return {
+          ...repo,
+          riskScore: metric?.riskScore ?? 0,
+          confidenceScore: metric?.confidenceScore ?? 0,
+          healthScore,
+        };
+      }),
+    };
   }
 
   private async buildOverview(organizationId: string, window = '14d') {
@@ -192,68 +273,6 @@ export class DashboardService {
       reviewQueue: reviewStatusRows,
       severityTotals,
       riskTrend,
-    };
-  }
-
-  async getRepositoriesOverview(organizationId: string) {
-    const [repoRows, metricsRows] = await Promise.all([
-      this.safeDashboardQuery(
-        'repositories.list',
-        { organizationId },
-        [],
-        () => this.db
-          .select({
-            id: repositories.id,
-            name: repositories.name,
-            fullName: repositories.fullName,
-            syncState: repositories.syncState,
-            language: repositories.language,
-            lastSyncedAt: repositories.lastSyncedAt,
-          })
-          .from(repositories)
-          .where(eq(repositories.organizationId, organizationId)),
-      ),
-      this.safeDashboardQuery(
-        'repositories.metrics',
-        { organizationId },
-        [],
-        () => this.db
-          .select({
-            repositoryId: reviewMetrics.repositoryId,
-            riskScore: reviewMetrics.riskScore,
-            confidenceScore: reviewMetrics.confidenceScore,
-            publishedAt: reviewMetrics.publishedAt,
-          })
-          .from(reviewMetrics)
-          .innerJoin(repositories, eq(reviewMetrics.repositoryId, repositories.id))
-          .where(eq(repositories.organizationId, organizationId)),
-      ),
-    ]);
-
-    const latestMetricByRepo = new Map<string, (typeof metricsRows)[number]>();
-    for (const metric of metricsRows) {
-      const existing = latestMetricByRepo.get(metric.repositoryId);
-      if (
-        !existing ||
-        (metric.publishedAt &&
-          existing.publishedAt &&
-          metric.publishedAt > existing.publishedAt)
-      ) {
-        latestMetricByRepo.set(metric.repositoryId, metric);
-      }
-    }
-
-    return {
-      repositories: repoRows.map((repo) => {
-        const metric = latestMetricByRepo.get(repo.id);
-        const healthScore = metric ? Math.max(0, 100 - metric.riskScore) : 92;
-        return {
-          ...repo,
-          riskScore: metric?.riskScore ?? 0,
-          confidenceScore: metric?.confidenceScore ?? 0,
-          healthScore,
-        };
-      }),
     };
   }
 
@@ -594,6 +613,18 @@ export class DashboardService {
       providerFailover: failoverRows,
       usage: usageRows,
       estimatedCostCents: costRows[0]?.totalCostCents ?? 0,
+    };
+  }
+
+  private emptyOverview() {
+    return {
+      repositories: 0,
+      openPullRequests: 0,
+      reviews: 0,
+      tokens: 0,
+      reviewQueue: [],
+      severityTotals: { critical: 0, warning: 0, info: 0 },
+      riskTrend: [],
     };
   }
 }
