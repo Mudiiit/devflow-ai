@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge, Card, SectionTitle, SkeletonBlock } from "@/components/ui";
-import { fetchApi, getApiBase } from "@/lib/api";
+import { buildApiUrl, fetchApi } from "@/lib/api";
 
 type NotificationType =
   | "review_completed"
@@ -148,10 +148,53 @@ export default function NotificationsInboxPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let eventSource: EventSource | null = null;
 
     async function loadAndSubscribe() {
       try {
         await hydrateInbox();
+        if (cancelled) {
+          return;
+        }
+
+        const streamUrl = await buildApiUrl("/notifications/stream");
+        if (cancelled) {
+          return;
+        }
+
+        eventSource = new EventSource(streamUrl, {
+          withCredentials: true,
+        });
+
+        const handleStreamMessage = (event: MessageEvent<string>) => {
+          const incoming = parseIncomingNotification(event.data);
+          if (!incoming) {
+            return;
+          }
+
+          setInbox((previous) => upsertNotification(previous, incoming));
+        };
+
+        eventSource.addEventListener("message", handleStreamMessage);
+        for (const eventType of streamEventTypes) {
+          eventSource.addEventListener(eventType, handleStreamMessage);
+        }
+
+        eventSource.onerror = () => {
+          setIsStreamConnected(false);
+          if (!cancelled) {
+            setError((previous) => previous ?? "Realtime connection interrupted. Trying to recover...");
+          }
+        };
+
+        eventSource.onopen = () => {
+          setIsStreamConnected(true);
+          if (!cancelled) {
+            setError((previous) =>
+              previous === "Realtime connection interrupted. Trying to recover..." ? null : previous,
+            );
+          }
+        };
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : "Failed to load notifications.");
@@ -165,47 +208,11 @@ export default function NotificationsInboxPage() {
 
     void loadAndSubscribe();
 
-    const eventSource = new EventSource(`${getApiBase()}/notifications/stream`, {
-      withCredentials: true,
-    });
-
-    const handleStreamMessage = (event: MessageEvent<string>) => {
-      const incoming = parseIncomingNotification(event.data);
-      if (!incoming) {
-        return;
-      }
-
-      setInbox((previous) => upsertNotification(previous, incoming));
-    };
-
-    eventSource.addEventListener("message", handleStreamMessage);
-    for (const eventType of streamEventTypes) {
-      eventSource.addEventListener(eventType, handleStreamMessage);
-    }
-
-    eventSource.onerror = () => {
-      setIsStreamConnected(false);
-      if (!cancelled) {
-        setError((previous) => previous ?? "Realtime connection interrupted. Trying to recover...");
-      }
-    };
-
-    eventSource.onopen = () => {
-      setIsStreamConnected(true);
-      if (!cancelled) {
-        setError((previous) =>
-          previous === "Realtime connection interrupted. Trying to recover..." ? null : previous,
-        );
-      }
-    };
-
     return () => {
       cancelled = true;
-      eventSource.removeEventListener("message", handleStreamMessage);
-      for (const eventType of streamEventTypes) {
-        eventSource.removeEventListener(eventType, handleStreamMessage);
+      if (eventSource) {
+        eventSource.close();
       }
-      eventSource.close();
     };
   }, [hydrateInbox]);
 
@@ -295,7 +302,7 @@ export default function NotificationsInboxPage() {
                   void markAllAsRead();
                 }}
                 disabled={!hasUnread || isMarkingAll}
-                className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-full border border-(--app-border) px-4 py-2 text-xs font-semibold text-foreground transition hover:bg-(--app-panel-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent) disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isMarkingAll ? "Marking..." : "Mark all read"}
               </button>
@@ -343,8 +350,8 @@ export default function NotificationsInboxPage() {
               <div
                 key={notification.id}
                 className={[
-                  "rounded-2xl border border-(--app-border) px-4 py-3 transition hover:bg-[color:var(--app-panel-strong)]/30",
-                  notification.unread ? "border-l-4 border-l-[color:var(--app-accent)]" : "",
+                  "rounded-2xl border border-(--app-border) px-4 py-3 transition hover:bg-(--app-panel-strong)/30",
+                  notification.unread ? "border-l-4 border-l-(--app-accent)" : "",
                 ].join(" ")}
               >
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -365,7 +372,7 @@ export default function NotificationsInboxPage() {
                     {notification.actionUrl ? (
                       <a
                         href={notification.actionUrl}
-                        className="rounded-full border border-(--app-border) px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-[color:var(--app-panel-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)]"
+                        className="rounded-full border border-(--app-border) px-3 py-2 text-xs font-semibold text-foreground transition hover:bg-(--app-panel-strong) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent)"
                       >
                         Open
                       </a>
@@ -376,7 +383,7 @@ export default function NotificationsInboxPage() {
                       onClick={() => {
                         void markAsRead(notification.id);
                       }}
-                      className="rounded-full bg-(--app-accent) px-3 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--app-accent)] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full bg-(--app-accent) px-3 py-2 text-xs font-semibold text-white transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent) disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Mark read
                     </button>
