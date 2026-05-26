@@ -3,6 +3,9 @@ import { BillingActionButton } from "@/components/BillingActionButton";
 import { fetchApi } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 type BillingUsageResource = {
   readonly resource: string;
   readonly quantity: number;

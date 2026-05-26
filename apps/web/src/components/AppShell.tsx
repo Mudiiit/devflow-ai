@@ -129,7 +129,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   useEffect(() => {
-    setMobileNavOpen(false);
+    const closeNavTimer = window.setTimeout(() => {
+      setMobileNavOpen(false);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(closeNavTimer);
+    };
   }, [pathname]);
 
   return (

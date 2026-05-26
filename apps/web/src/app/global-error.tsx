@@ -1,9 +1,10 @@
 "use client";
 
+import { useId } from "react";
 import Link from "next/link";
 
 export default function GlobalError({ reset }: { reset: () => void }) {
-  const supportReference = `df-${Date.now().toString(36)}`;
+  const supportReference = `df-${useId().replace(/:/g, "")}`;
 
   return (
     <html>

@@ -166,13 +166,16 @@ export default function JobMonitorPage() {
   }, []);
 
   useEffect(() => {
-    void loadJobs();
+    const initialLoadTimer = window.setTimeout(() => {
+      void loadJobs();
+    }, 0);
 
     const timer = window.setInterval(() => {
       void loadJobs();
     }, refreshIntervalMs);
 
     return () => {
+      window.clearTimeout(initialLoadTimer);
       window.clearInterval(timer);
     };
   }, [loadJobs]);

@@ -1,4 +1,6 @@
-import { GithubSignInButton } from "./GithubSignInButton";
+import { Suspense } from 'react';
+
+import { GithubSignInButton } from './GithubSignInButton';
 
 export default function LoginPage() {
   return (
@@ -33,7 +35,9 @@ export default function LoginPage() {
           <div className="rounded-2xl border border-[color:var(--app-border)] bg-[color:var(--app-panel-strong)]/40 px-4 py-3 text-xs text-[color:var(--app-muted)]">
             Onboarding is usually under 2 minutes and includes repo sync, team access, and notification setup.
           </div>
-          <GithubSignInButton />
+          <Suspense fallback={<div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 text-xs text-[color:var(--app-muted)]">Loading sign-in options...</div>}>
+            <GithubSignInButton />
+          </Suspense>
           <div className="rounded-2xl border border-[color:var(--app-border)] px-4 py-3 text-xs text-[color:var(--app-muted)]">
             By continuing you agree to the DevFlow AI terms and the GitHub OAuth authorization flow.
           </div>
