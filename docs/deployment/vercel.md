@@ -34,7 +34,7 @@ Note: the `-w` flag makes pnpm operate at workspace level so shared packages res
 Common variables used across apps. Only set the ones relevant to the service being deployed.
 
 - For `apps/web` (frontend):
-  - `NEXT_PUBLIC_API_URL` — full URL to your deployed API (e.g., `https://api.devflow.example.com`)
+  - `NEXT_PUBLIC_API_URL` — full URL to your deployed API on Render; browser requests go through the same-origin proxy at `/api/backend`, but server components and route handlers still need the direct API URL (e.g., `https://devflow-ai-api.onrender.com`)
   - `NEXT_PUBLIC_APP_URL` — public web URL (e.g., `https://app.devflow.example.com`)
   - `NEXTAUTH_URL` — same public web URL; keep it aligned with the frontend origin used by the API for OAuth callbacks and redirects
   - `NEXTAUTH_SECRET` — >= 32 chars for NextAuth session and callback integrity
@@ -71,6 +71,7 @@ Security note: always mark production secrets as Environment Variables in Vercel
   - Ensure `DATABASE_URL` points to a managed Postgres (RDS, Neon, Supabase, etc.)
   - Use connection pooling (pgbouncer) or a serverless-friendly Postgres provider if needed
   - Configure health/readiness endpoints (the repo includes `infra/scripts/verify-deployment.js` to perform post-deploy verification)
+  - Set `NEXTAUTH_URL` or `NEXT_PUBLIC_APP_URL` to the Vercel frontend origin, not `localhost`, so `SameSite=None` cookies are emitted for the cross-origin auth session
 
 ---
 
@@ -115,6 +116,7 @@ Before promoting to production, verify the following:
 
 - Build fails (pnpm workspace errors): ensure the Install Command runs with `-w` or from repo root so workspace packages install.
 - Missing runtime envs: Vercel build or runtime errors complaining about `DATABASE_URL`, `NEXT_PUBLIC_API_URL`, or `NEXTAUTH_SECRET` — add them to the Vercel env list.
+- Auth works in SSR but not in the browser: confirm the frontend is calling the same-origin proxy (`/api/backend/*`) and that `NEXT_PUBLIC_API_URL` points to the Render URL used by that proxy.
 - GitHub private key errors (`createPrivateKey` failures): check newline handling (use `\n` escapes or paste full PEM with newlines).
 - LLM provider auth errors: verify API keys and provider availability; add exponential backoff for quota errors.
 - DB connection/SSL: if using managed Postgres (Neon/Supabase), you may need `rejectUnauthorized: false` handling — the code already attempts to auto-detect some managed providers but confirm connectivity.

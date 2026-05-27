@@ -36,6 +36,19 @@ async function bootstrap() {
     }
 
     console.info('[api] app bootstrap started');
+    const frontendOrigin = resolveFrontendOrigin();
+    const corsOrigins = [frontendOrigin];
+
+    console.info('[api] public origin configuration', {
+      frontendOrigin,
+      corsOrigins,
+      apiOrigin: process.env.RENDER_EXTERNAL_URL ?? process.env.API_PUBLIC_URL ?? process.env.NEXT_PUBLIC_API_URL ?? null,
+    });
+
+    if (process.env.NODE_ENV === 'production' && isLocalOrigin(frontendOrigin)) {
+      console.warn('[api] frontend origin resolves to localhost in production; cookie and OAuth flows will fail');
+    }
+
     const app = await NestFactory.create(AppModule);
     (app as unknown as { set: (setting: string, value: number) => void }).set(
       'trust proxy',
@@ -81,7 +94,7 @@ async function bootstrap() {
     }
 
     app.enableCors({
-      origin: [resolveFrontendOrigin()],
+      origin: corsOrigins,
       credentials: true,
     });
     app.use('/webhooks/github', raw({ type: '*/*' }));
@@ -117,6 +130,15 @@ function formatFatalError(error: unknown): string {
   }
 
   return typeof error === 'string' ? error : JSON.stringify(error, null, 2);
+}
+
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const hostname = new URL(origin).hostname.toLowerCase();
+    return hostname === 'localhost' || hostname.endsWith('.localhost') || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname);
+  } catch {
+    return false;
+  }
 }
 
 process.on('unhandledRejection', (reason) => {
