@@ -46,9 +46,13 @@ export const authOptions: NextAuthOptions = {
     async signIn() {
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       if (user?.id) {
         token.sub = user.id;
+      }
+
+      if (account?.provider === 'github' && typeof account.access_token === 'string') {
+        (token as { githubAccessToken?: string }).githubAccessToken = account.access_token;
       }
 
       return token;

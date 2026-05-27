@@ -5,10 +5,11 @@ import { signIn } from 'next-auth/react';
 export function GithubSignInButton(): React.JSX.Element {
   function getCallbackUrl(): string {
     const rawCallbackUrl = new URLSearchParams(window.location.search).get('callbackUrl');
-
-    return rawCallbackUrl && rawCallbackUrl.startsWith('/') && rawCallbackUrl !== '/login'
+    const returnTo = rawCallbackUrl && rawCallbackUrl.startsWith('/') && rawCallbackUrl !== '/login'
       ? rawCallbackUrl
       : '/dashboard';
+
+    return `/api/devflow/bootstrap?returnTo=${encodeURIComponent(returnTo)}`;
   }
 
   return (

@@ -12,6 +12,11 @@ import {
 } from '../auth.constants.js';
 import { SessionService } from '../services/session.service.js';
 
+const NEXT_AUTH_COOKIE_NAMES = [
+  'next-auth.session-token',
+  '__Secure-next-auth.session-token',
+];
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -26,11 +31,15 @@ export class JwtAuthGuard implements CanActivate {
     const tokenDetails = this.extractToken(request);
 
     if (!tokenDetails.token) {
+      const cookiePresence = this.buildCookiePresence(request.headers.cookie);
       this.logger.event('warn', 'auth.session.missing', {
         path: request.originalUrl ?? request.url,
         method: request.method,
         hasAuthorization: Boolean(request.headers.authorization),
         hasCookieHeader: Boolean(request.headers.cookie),
+        cookieNames: cookiePresence.cookieNames,
+        hasDevflowAccessToken: cookiePresence.hasDevflowAccessToken,
+        hasNextAuthSession: cookiePresence.hasNextAuthSession,
         tokenPresent: false,
         tokenSource: tokenDetails.source,
       });
@@ -43,11 +52,15 @@ export class JwtAuthGuard implements CanActivate {
     );
 
     if (!session) {
+      const cookiePresence = this.buildCookiePresence(request.headers.cookie);
       this.logger.event('warn', 'auth.session.invalid', {
         path: request.originalUrl ?? request.url,
         method: request.method,
         hasAuthorization: Boolean(request.headers.authorization),
         hasCookieHeader: Boolean(request.headers.cookie),
+        cookieNames: cookiePresence.cookieNames,
+        hasDevflowAccessToken: cookiePresence.hasDevflowAccessToken,
+        hasNextAuthSession: cookiePresence.hasNextAuthSession,
         tokenPresent: true,
         tokenSource: tokenDetails.source,
       });
@@ -62,6 +75,7 @@ export class JwtAuthGuard implements CanActivate {
       sessionId: session.session.id,
       hasAuthorization: Boolean(request.headers.authorization),
       hasCookieHeader: Boolean(request.headers.cookie),
+      ...this.buildCookiePresence(request.headers.cookie),
       tokenPresent: true,
       tokenSource: tokenDetails.source,
     });
@@ -101,5 +115,32 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     return null;
+  }
+
+  private listCookieNames(cookieHeader: string | undefined): string[] {
+    if (!cookieHeader) {
+      return [];
+    }
+
+    return cookieHeader
+      .split(';')
+      .map((segment) => segment.trim().split('=')[0] ?? '')
+      .filter((name) => name.length > 0);
+  }
+
+  private buildCookiePresence(cookieHeader: string | undefined): {
+    cookieNames: string[];
+    hasDevflowAccessToken: boolean;
+    hasNextAuthSession: boolean;
+  } {
+    const cookieNames = this.listCookieNames(cookieHeader);
+
+    return {
+      cookieNames,
+      hasDevflowAccessToken: cookieNames.includes(AUTH_ACCESS_TOKEN_COOKIE),
+      hasNextAuthSession: NEXT_AUTH_COOKIE_NAMES.some((name) =>
+        cookieNames.includes(name),
+      ),
+    };
   }
 }

@@ -6,10 +6,11 @@ import {
   Query,
   Req,
   Res,
+  UnauthorizedException,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import type { Response, Request } from 'express';
+import type { Request, Response } from 'express';
 import { DATABASE_CLIENT } from '../../database/database.constants.js';
 import type { DatabaseClient } from '@devflow/database';
 import {
@@ -102,29 +103,10 @@ export class AuthController {
       const accessToken =
         await this.githubOAuthStrategy.exchangeCodeForToken(code);
       const profile = await this.githubOAuthStrategy.fetchProfile(accessToken);
-      const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
-      await this.organizationService.ensurePersonalOrganizationForUser({
-        userId: dbUser.id,
-        githubLogin: dbUser.githubLogin,
-        displayName: dbUser.displayName,
+      const session = await this.issueGitHubSession(profile, {
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? null,
       });
-      const session = await this.sessionService.issueSession(
-        {
-          id: dbUser.id,
-          email: dbUser.email,
-          githubUserId: Number(dbUser.githubUserId),
-          githubLogin: dbUser.githubLogin,
-          displayName: dbUser.displayName,
-          fullName: dbUser.fullName,
-          avatarUrl: dbUser.avatarUrl,
-          role: dbUser.role,
-          status: dbUser.status,
-        },
-        {
-          ipAddress: request.ip,
-          userAgent: request.headers['user-agent'] ?? null,
-        },
-      );
 
       this.setAuthCookies(
         response,
@@ -136,6 +118,33 @@ export class AuthController {
     } catch (error) {
       response.status(500).json({ message: 'GitHub OAuth callback failed' });
     }
+  }
+
+  @Post('github/bootstrap')
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 30, windowMs: 60_000 })
+  async bootstrapGitHubSession(@Req() request: Request) {
+    const authorization = request.headers.authorization ?? '';
+    const accessToken = authorization.startsWith('Bearer ')
+      ? authorization.slice('Bearer '.length).trim()
+      : '';
+
+    if (!accessToken) {
+      throw new UnauthorizedException('Missing GitHub access token');
+    }
+
+    const profile = await this.githubOAuthService.fetchProfile(accessToken);
+    const session = await this.issueGitHubSession(profile, {
+      ipAddress: request.ip,
+      userAgent: request.headers['user-agent'] ?? null,
+    });
+
+    return {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      csrfToken: session.csrfToken,
+      sessionId: session.sessionId,
+    };
   }
 
   @Get('session')
@@ -263,6 +272,41 @@ export class AuthController {
     response.clearCookie(AUTH_ACCESS_TOKEN_COOKIE, cookieOptions);
     response.clearCookie(AUTH_REFRESH_TOKEN_COOKIE, cookieOptions);
     response.clearCookie(AUTH_CSRF_COOKIE, cookieOptions);
+  }
+
+  private async issueGitHubSession(
+    profile: Awaited<ReturnType<GitHubOAuthService['fetchProfile']>>,
+    context: {
+      ipAddress?: string | null;
+      userAgent?: string | null;
+    },
+  ): Promise<{
+    accessToken: string;
+    refreshToken: string;
+    csrfToken: string;
+    sessionId: string;
+  }> {
+    const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
+    await this.organizationService.ensurePersonalOrganizationForUser({
+      userId: dbUser.id,
+      githubLogin: dbUser.githubLogin,
+      displayName: dbUser.displayName,
+    });
+
+    return this.sessionService.issueSession(
+      {
+        id: dbUser.id,
+        email: dbUser.email,
+        githubUserId: Number(dbUser.githubUserId),
+        githubLogin: dbUser.githubLogin,
+        displayName: dbUser.displayName,
+        fullName: dbUser.fullName,
+        avatarUrl: dbUser.avatarUrl,
+        role: dbUser.role,
+        status: dbUser.status,
+      },
+      context,
+    );
   }
 
   private readCookie(cookieHeader: string, name: string): string | null {

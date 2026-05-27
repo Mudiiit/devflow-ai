@@ -43,6 +43,7 @@ export function isApiError(error: unknown): error is ApiError {
 type ApiRequestOptions = RequestInit & {
   readonly cookieHeader?: string;
   readonly skipOrganizationContext?: boolean;
+  readonly skipRefreshOnUnauthorized?: boolean;
 };
 
 type OrganizationContext = {
@@ -57,6 +58,14 @@ type DefaultOrganizationResponse = {
 
 const organizationContextCache = new Map<string, Promise<OrganizationContext | null>>();
 
+const AUTH_ACCESS_TOKEN_COOKIE = "devflow_access_token";
+const AUTH_REFRESH_TOKEN_COOKIE = "devflow_refresh_token";
+const AUTH_CSRF_COOKIE = "devflow_csrf_token";
+const NEXT_AUTH_COOKIE_NAMES = [
+  "next-auth.session-token",
+  "__Secure-next-auth.session-token",
+];
+
 function readHeaderValue(
   headers: Headers,
   name: string,
@@ -68,6 +77,46 @@ function readHeaderValue(
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function readCookieValue(cookieHeader: string, name: string): string | null {
+  for (const segment of cookieHeader.split(";")) {
+    const [rawName, ...rawValue] = segment.trim().split("=");
+    if (rawName === name) {
+      return decodeURIComponent(rawValue.join("="));
+    }
+  }
+
+  return null;
+}
+
+function listCookieNames(cookieHeader: string | null): string[] {
+  if (!cookieHeader) {
+    return [];
+  }
+
+  return cookieHeader
+    .split(";")
+    .map((segment) => segment.trim().split("=")[0] ?? "")
+    .filter((name) => name.length > 0);
+}
+
+function hasCookie(cookieHeader: string | null, name: string): boolean {
+  return listCookieNames(cookieHeader).includes(name);
+}
+
+function buildAuthState(cookieHeader: string | null, headers: Headers) {
+  return {
+    cookieNames: listCookieNames(cookieHeader),
+    hasCookie: Boolean(cookieHeader),
+    hasDevflowAccessToken: hasCookie(cookieHeader, AUTH_ACCESS_TOKEN_COOKIE),
+    hasDevflowRefreshToken: hasCookie(cookieHeader, AUTH_REFRESH_TOKEN_COOKIE),
+    hasDevflowCsrfToken: hasCookie(cookieHeader, AUTH_CSRF_COOKIE),
+    hasNextAuthSession: NEXT_AUTH_COOKIE_NAMES.some((name) => hasCookie(cookieHeader, name)),
+    hasAuthorization: Boolean(readHeaderValue(headers, "authorization")),
+    hasOrgId: Boolean(readHeaderValue(headers, "x-org-id")),
+    hasWorkspaceId: Boolean(readHeaderValue(headers, "x-workspace-id")),
+  };
 }
 
 function buildOrganizationContextCacheKey(init?: ApiRequestOptions): string {
@@ -88,9 +137,15 @@ function logSsrApiFailure(input: {
   readonly status?: number;
   readonly statusText?: string;
   readonly hasCookie: boolean;
+  readonly cookieNames?: string[];
+  readonly hasDevflowAccessToken?: boolean;
+  readonly hasDevflowRefreshToken?: boolean;
+  readonly hasDevflowCsrfToken?: boolean;
+  readonly hasNextAuthSession?: boolean;
   readonly hasAuthorization: boolean;
   readonly hasOrgId: boolean;
   readonly hasWorkspaceId: boolean;
+  readonly responseBody?: unknown;
   readonly error?: unknown;
 }): void {
   if (typeof window !== "undefined") {
@@ -105,9 +160,15 @@ function logSsrApiFailure(input: {
     status: input.status,
     statusText: input.statusText,
     hasCookie: input.hasCookie,
+    cookieNames: input.cookieNames ?? [],
+    hasDevflowAccessToken: input.hasDevflowAccessToken,
+    hasDevflowRefreshToken: input.hasDevflowRefreshToken,
+    hasDevflowCsrfToken: input.hasDevflowCsrfToken,
+    hasNextAuthSession: input.hasNextAuthSession,
     hasAuthorization: input.hasAuthorization,
     hasOrgId: input.hasOrgId,
     hasWorkspaceId: input.hasWorkspaceId,
+    responseBody: input.responseBody,
     error: input.error,
   });
 }
@@ -165,6 +226,27 @@ async function fetchOrganizationContext(
       });
 
       if (!response.ok) {
+        const responseBody = await readResponseBody(response);
+
+        logSsrApiFailure({
+          reason: "response_not_ok",
+          path: "/organizations/default",
+          requestUrl: response.url,
+          method: "GET",
+          status: response.status,
+          statusText: response.statusText,
+          hasCookie: Boolean(cookieHeader),
+          cookieNames: listCookieNames(cookieHeader),
+          hasDevflowAccessToken: hasCookie(cookieHeader, AUTH_ACCESS_TOKEN_COOKIE),
+          hasDevflowRefreshToken: hasCookie(cookieHeader, AUTH_REFRESH_TOKEN_COOKIE),
+          hasDevflowCsrfToken: hasCookie(cookieHeader, AUTH_CSRF_COOKIE),
+          hasNextAuthSession: NEXT_AUTH_COOKIE_NAMES.some((name) => hasCookie(cookieHeader, name)),
+          hasAuthorization: Boolean(readHeaderValue(headers, "authorization")),
+          hasOrgId: Boolean(readHeaderValue(headers, "x-org-id")),
+          hasWorkspaceId: Boolean(readHeaderValue(headers, "x-workspace-id")),
+          responseBody,
+        });
+
         if (response.status === 401 || response.status === 403) {
           return null;
         }
@@ -173,7 +255,7 @@ async function fetchOrganizationContext(
           status: response.status,
           statusText: response.statusText,
           requestUrl: response.url,
-          responseBody: await readResponseBody(response),
+          responseBody,
         });
       }
 
@@ -208,6 +290,63 @@ async function fetchOrganizationContext(
 
   organizationContextCache.set(cacheKey, cachedPromise);
   return cachedPromise;
+}
+
+async function refreshServerSession(init?: ApiRequestOptions): Promise<string | null> {
+  if (typeof window !== "undefined") {
+    return null;
+  }
+
+  const headers = new Headers(init?.headers);
+  const cookieHeader = init?.cookieHeader ?? readHeaderValue(headers, "cookie") ?? null;
+
+  if (!cookieHeader) {
+    return null;
+  }
+
+  const csrfToken = readCookieValue(cookieHeader, AUTH_CSRF_COOKIE);
+  if (!csrfToken) {
+    return null;
+  }
+
+  headers.set("Cookie", cookieHeader);
+  headers.set("x-csrf-token", csrfToken);
+  headers.set("Content-Type", "application/json");
+
+  console.info("ssr.api.refresh.start", {
+    cookieNames: listCookieNames(cookieHeader),
+    hasDevflowAccessToken: hasCookie(cookieHeader, AUTH_ACCESS_TOKEN_COOKIE),
+    hasDevflowRefreshToken: hasCookie(cookieHeader, AUTH_REFRESH_TOKEN_COOKIE),
+    hasDevflowCsrfToken: hasCookie(cookieHeader, AUTH_CSRF_COOKIE),
+    hasNextAuthSession: NEXT_AUTH_COOKIE_NAMES.some((name) => hasCookie(cookieHeader, name)),
+  });
+
+  const response = await fetch(`${resolveApiBase()}/auth/refresh`, {
+    method: "POST",
+    headers,
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const responseBody = await readResponseBody(response);
+    console.info("ssr.api.refresh.failed", {
+      status: response.status,
+      statusText: response.statusText,
+      responseBody,
+      cookieNames: listCookieNames(cookieHeader),
+    });
+    return null;
+  }
+
+  const payload = (await response.json()) as { readonly accessToken?: string };
+  const accessToken = payload.accessToken ?? null;
+
+  console.info("ssr.api.refresh.succeeded", {
+    cookieNames: listCookieNames(cookieHeader),
+    hasAccessToken: Boolean(accessToken),
+  });
+
+  return accessToken;
 }
 
 async function resolveRequestHeaders(
@@ -265,10 +404,17 @@ async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> 
   const headers = await resolveRequestHeaders(path, init);
   const requestUrl = await resolveRequestUrl(path, init);
   const method = init?.method ?? "GET";
-  const hasCookie = Boolean(readHeaderValue(headers, "cookie"));
-  const hasAuthorization = Boolean(readHeaderValue(headers, "authorization"));
-  const hasOrgId = Boolean(readHeaderValue(headers, "x-org-id"));
-  const hasWorkspaceId = Boolean(readHeaderValue(headers, "x-workspace-id"));
+  const cookieHeader = readHeaderValue(headers, "cookie");
+  const authState = buildAuthState(cookieHeader, headers);
+
+  if (typeof window === "undefined") {
+    console.info("ssr.api.fetch.start", {
+      path,
+      requestUrl,
+      method,
+      ...authState,
+    });
+  }
 
   let response: Response;
 
@@ -284,16 +430,42 @@ async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> 
       path,
       requestUrl,
       method,
-      hasCookie,
-      hasAuthorization,
-      hasOrgId,
-      hasWorkspaceId,
+      hasCookie: authState.hasCookie,
+      cookieNames: authState.cookieNames,
+      hasDevflowAccessToken: authState.hasDevflowAccessToken,
+      hasDevflowRefreshToken: authState.hasDevflowRefreshToken,
+      hasDevflowCsrfToken: authState.hasDevflowCsrfToken,
+      hasNextAuthSession: authState.hasNextAuthSession,
+      hasAuthorization: authState.hasAuthorization,
+      hasOrgId: authState.hasOrgId,
+      hasWorkspaceId: authState.hasWorkspaceId,
       error,
     });
     throw error;
   }
 
   if (!response.ok) {
+    const responseBody = await readResponseBody(response);
+
+    if (
+      response.status === 401 &&
+      typeof window === "undefined" &&
+      !init?.skipRefreshOnUnauthorized
+    ) {
+      const refreshedAccessToken = await refreshServerSession(init);
+
+      if (refreshedAccessToken) {
+        const retryHeaders = new Headers(init?.headers);
+        retryHeaders.set("Authorization", `Bearer ${refreshedAccessToken}`);
+
+        return fetchJson<T>(path, {
+          ...init,
+          headers: retryHeaders,
+          skipRefreshOnUnauthorized: true,
+        });
+      }
+    }
+
     logSsrApiFailure({
       reason: "response_not_ok",
       path,
@@ -301,17 +473,23 @@ async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> 
       method,
       status: response.status,
       statusText: response.statusText,
-      hasCookie,
-      hasAuthorization,
-      hasOrgId,
-      hasWorkspaceId,
+      hasCookie: authState.hasCookie,
+      cookieNames: authState.cookieNames,
+      hasDevflowAccessToken: authState.hasDevflowAccessToken,
+      hasDevflowRefreshToken: authState.hasDevflowRefreshToken,
+      hasDevflowCsrfToken: authState.hasDevflowCsrfToken,
+      hasNextAuthSession: authState.hasNextAuthSession,
+      hasAuthorization: authState.hasAuthorization,
+      hasOrgId: authState.hasOrgId,
+      hasWorkspaceId: authState.hasWorkspaceId,
+      responseBody,
     });
 
     throw new ApiError(`Request failed: ${response.status}`, {
       status: response.status,
       statusText: response.statusText,
       requestUrl,
-      responseBody: await readResponseBody(response),
+      responseBody,
     });
   }
 
