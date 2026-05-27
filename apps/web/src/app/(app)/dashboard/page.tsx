@@ -41,7 +41,11 @@ export default async function DashboardPage() {
   try {
     repositories = (await getRepositoryOverview()).repositories;
   } catch (error: unknown) {
-    console.error("dashboard.load.failed", error);
+    console.error("dashboard.load.failed", {
+      route: "/dashboard",
+      source: "server-component",
+      error,
+    });
     errorMessage = isApiError(error)
       ? `Unable to load dashboard data (${error.status}).`
       : "Unable to load dashboard data.";

@@ -57,6 +57,61 @@ type DefaultOrganizationResponse = {
 
 const organizationContextCache = new Map<string, Promise<OrganizationContext | null>>();
 
+function readHeaderValue(
+  headers: Headers,
+  name: string,
+): string | null {
+  const value = headers.get(name);
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function buildOrganizationContextCacheKey(init?: ApiRequestOptions): string {
+  const requestHeaders = new Headers(init?.headers);
+  const cookiePart = init?.cookieHeader ?? readHeaderValue(requestHeaders, "cookie") ?? "";
+  const authorizationPart = readHeaderValue(requestHeaders, "authorization") ?? "";
+  const orgIdPart = readHeaderValue(requestHeaders, "x-org-id") ?? "";
+  const workspaceIdPart = readHeaderValue(requestHeaders, "x-workspace-id") ?? "";
+
+  return [cookiePart, authorizationPart, orgIdPart, workspaceIdPart].join("::");
+}
+
+function logSsrApiFailure(input: {
+  readonly reason: "response_not_ok" | "request_error";
+  readonly path: string;
+  readonly requestUrl: string;
+  readonly method: string;
+  readonly status?: number;
+  readonly statusText?: string;
+  readonly hasCookie: boolean;
+  readonly hasAuthorization: boolean;
+  readonly hasOrgId: boolean;
+  readonly hasWorkspaceId: boolean;
+  readonly error?: unknown;
+}): void {
+  if (typeof window !== "undefined") {
+    return;
+  }
+
+  console.error("ssr.api.fetch.failed", {
+    reason: input.reason,
+    path: input.path,
+    requestUrl: input.requestUrl,
+    method: input.method,
+    status: input.status,
+    statusText: input.statusText,
+    hasCookie: input.hasCookie,
+    hasAuthorization: input.hasAuthorization,
+    hasOrgId: input.hasOrgId,
+    hasWorkspaceId: input.hasWorkspaceId,
+    error: input.error,
+  });
+}
+
 const protectedApiPrefixes = [
   "/dashboard",
   "/billing",
@@ -86,7 +141,7 @@ function shouldAttachOrganizationContext(path: string): boolean {
 async function fetchOrganizationContext(
   init?: ApiRequestOptions,
 ): Promise<OrganizationContext | null> {
-  const cacheKey = init?.cookieHeader ?? "__browser__";
+  const cacheKey = buildOrganizationContextCacheKey(init);
   const cachedContext = organizationContextCache.get(cacheKey);
 
   if (cachedContext) {
@@ -95,10 +150,11 @@ async function fetchOrganizationContext(
 
   const contextPromise = (async () => {
     try {
-      const headers = new Headers();
+      const headers = new Headers(init?.headers);
+      const cookieHeader = init?.cookieHeader ?? readHeaderValue(headers, "cookie") ?? null;
 
-      if (init?.cookieHeader) {
-        headers.set("Cookie", init.cookieHeader);
+      if (cookieHeader) {
+        headers.set("Cookie", cookieHeader);
       }
 
       const response = await fetch(`${resolveApiBase()}/organizations/default`, {
@@ -164,8 +220,9 @@ async function resolveRequestHeaders(
     headers.set("Content-Type", "application/json");
   }
 
-  if (init?.cookieHeader) {
-    headers.set("Cookie", init.cookieHeader);
+  const cookieHeader = init?.cookieHeader ?? readHeaderValue(headers, "cookie");
+  if (cookieHeader) {
+    headers.set("Cookie", cookieHeader);
   }
 
   if (init?.skipOrganizationContext || !shouldAttachOrganizationContext(path)) {
@@ -207,14 +264,49 @@ async function resolveRequestUrl(
 async function fetchJson<T>(path: string, init?: ApiRequestOptions): Promise<T> {
   const headers = await resolveRequestHeaders(path, init);
   const requestUrl = await resolveRequestUrl(path, init);
+  const method = init?.method ?? "GET";
+  const hasCookie = Boolean(readHeaderValue(headers, "cookie"));
+  const hasAuthorization = Boolean(readHeaderValue(headers, "authorization"));
+  const hasOrgId = Boolean(readHeaderValue(headers, "x-org-id"));
+  const hasWorkspaceId = Boolean(readHeaderValue(headers, "x-workspace-id"));
 
-  const response = await fetch(requestUrl, {
-    ...init,
-    headers,
-    cache: "no-store",
-  });
+  let response: Response;
+
+  try {
+    response = await fetch(requestUrl, {
+      ...init,
+      headers,
+      cache: "no-store",
+    });
+  } catch (error) {
+    logSsrApiFailure({
+      reason: "request_error",
+      path,
+      requestUrl,
+      method,
+      hasCookie,
+      hasAuthorization,
+      hasOrgId,
+      hasWorkspaceId,
+      error,
+    });
+    throw error;
+  }
 
   if (!response.ok) {
+    logSsrApiFailure({
+      reason: "response_not_ok",
+      path,
+      requestUrl,
+      method,
+      status: response.status,
+      statusText: response.statusText,
+      hasCookie,
+      hasAuthorization,
+      hasOrgId,
+      hasWorkspaceId,
+    });
+
     throw new ApiError(`Request failed: ${response.status}`, {
       status: response.status,
       statusText: response.statusText,
@@ -234,9 +326,17 @@ export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> 
 }
 
 export async function fetchServerApi<T>(path: string, cookieHeader?: string, init?: RequestInit): Promise<T> {
+  const requestHeaders = new Headers(init?.headers);
+  const forwardedCookie = cookieHeader ?? readHeaderValue(requestHeaders, "cookie") ?? undefined;
+
+  if (forwardedCookie) {
+    requestHeaders.set("Cookie", forwardedCookie);
+  }
+
   return fetchJson<T>(path, {
     ...init,
-    cookieHeader,
+    headers: requestHeaders,
+    cookieHeader: forwardedCookie,
     credentials: "include",
   });
 }
