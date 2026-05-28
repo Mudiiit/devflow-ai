@@ -56,6 +56,9 @@ export class SessionService {
     let rows;
 
     try {
+      console.info('auth.session.issue.insert.before', {
+        userId: user.id,
+      });
       rows = await this.db
         .insert(authSessions)
         .values({
@@ -68,6 +71,10 @@ export class SessionService {
           metadata: { issuedVia: 'github-oauth' },
         })
         .returning();
+      console.info('auth.session.issue.insert.after', {
+        userId: user.id,
+        sessionId: rows[0]?.id,
+      });
     } catch (error) {
       console.error('auth.session.issue.insert_failed', {
         userId: user.id,

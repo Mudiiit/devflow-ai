@@ -32,24 +32,59 @@ export class OrganizationService {
     githubLogin: string;
     displayName?: string | null;
   }) {
+    console.info('auth.bootstrap.organization.ensure.start', {
+      userId: input.userId,
+      githubLogin: input.githubLogin,
+      hasDisplayName: Boolean(input.displayName),
+    });
+
+    console.info('auth.bootstrap.organization.memberships.before', {
+      userId: input.userId,
+    });
     const memberships =
       await this.organizationMembershipsRepository.findManyByUserId(
         input.userId,
       );
+    console.info('auth.bootstrap.organization.memberships.after', {
+      userId: input.userId,
+      membershipCount: memberships.length,
+    });
+
     if (memberships.length > 0) {
+      console.info('auth.bootstrap.organization.lookup_existing.before', {
+        userId: input.userId,
+        organizationId: memberships[0].organizationId,
+      });
       const organization = await this.organizationsRepository.findById(
         memberships[0].organizationId,
       );
+      console.info('auth.bootstrap.organization.lookup_existing.after', {
+        userId: input.userId,
+        found: Boolean(organization),
+      });
       return organization ?? null;
     }
 
     const baseSlug =
       slugify(input.githubLogin) || `user-${input.userId.slice(0, 6)}`;
+    console.info('auth.bootstrap.organization.slug.before', {
+      userId: input.userId,
+      baseSlug,
+    });
     const slug = await this.ensureUniqueSlug(baseSlug);
+    console.info('auth.bootstrap.organization.slug.after', {
+      userId: input.userId,
+      baseSlug,
+      slug,
+    });
     const name = input.displayName
       ? `${input.displayName} Workspace`
       : `${input.githubLogin} Workspace`;
 
+    console.info('auth.bootstrap.organization.upsert.before', {
+      userId: input.userId,
+      slug,
+    });
     const organization = await this.organizationsRepository.upsertBySlug({
       name,
       slug,
@@ -58,7 +93,16 @@ export class OrganizationService {
       status: 'active',
       plan: 'free',
     });
+    console.info('auth.bootstrap.organization.upsert.after', {
+      userId: input.userId,
+      organizationId: organization.id,
+      slug,
+    });
 
+    console.info('auth.bootstrap.organization.membership_upsert.before', {
+      userId: input.userId,
+      organizationId: organization.id,
+    });
     await this.organizationMembershipsRepository.upsertMembership({
       organizationId: organization.id,
       userId: input.userId,
@@ -66,7 +110,15 @@ export class OrganizationService {
       status: 'active',
       joinedAt: new Date(),
     });
+    console.info('auth.bootstrap.organization.membership_upsert.after', {
+      userId: input.userId,
+      organizationId: organization.id,
+    });
 
+    console.info('auth.bootstrap.organization.settings_upsert.before', {
+      userId: input.userId,
+      organizationId: organization.id,
+    });
     await this.organizationSettingsRepository.upsertForOrganization({
       organizationId: organization.id,
       aiProvider: null,
@@ -81,7 +133,15 @@ export class OrganizationService {
         seededFrom: 'oauth',
       },
     });
+    console.info('auth.bootstrap.organization.settings_upsert.after', {
+      userId: input.userId,
+      organizationId: organization.id,
+    });
 
+    console.info('auth.bootstrap.organization.ensure.end', {
+      userId: input.userId,
+      organizationId: organization.id,
+    });
     return organization;
   }
 
