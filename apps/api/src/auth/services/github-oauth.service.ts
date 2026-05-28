@@ -9,6 +9,8 @@ import { resolveApiOrigin } from '../../common/public-origin.js';
 export class GitHubOAuthService {
   private readonly callbackUrl = `${resolveApiOrigin()}/auth/github/callback`;
 
+  private static readonly profileFetchTimeoutMs = 15_000;
+
   buildAuthorizationUrl(state: string, returnTo?: string): URL {
     if (!serverEnv.GITHUB_CLIENT_ID) {
       throw new Error('GITHUB_CLIENT_ID is required for GitHub OAuth login');
@@ -71,63 +73,109 @@ export class GitHubOAuthService {
   }
 
   async fetchProfile(accessToken: string): Promise<GitHubOAuthProfile> {
-    const [userResponse, emailResponse] = await Promise.all([
-      fetch('https://api.github.com/user', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      }),
-      fetch('https://api.github.com/user/emails', {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/vnd.github+json',
-          'X-GitHub-Api-Version': '2022-11-28',
-        },
-      }),
-    ]);
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), GitHubOAuthService.profileFetchTimeoutMs);
 
-    if (!userResponse.ok) {
-      throw new Error(
-        `GitHub profile lookup failed with status ${userResponse.status}`,
-      );
+    try {
+      console.info('auth.github.fetch_profile.before', {
+        timeoutMs: GitHubOAuthService.profileFetchTimeoutMs,
+        hasAccessToken: Boolean(accessToken),
+      });
+
+      const [userResponse, emailResponse] = await Promise.all([
+        fetch('https://api.github.com/user', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+          signal: controller.signal,
+        }),
+        fetch('https://api.github.com/user/emails', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+          signal: controller.signal,
+        }),
+      ]);
+
+      console.info('auth.github.fetch_profile.after', {
+        userStatus: userResponse.status,
+        emailStatus: emailResponse.status,
+        userOk: userResponse.ok,
+        emailOk: emailResponse.ok,
+      });
+
+      if (!userResponse.ok) {
+        const responseBody = await userResponse.text().catch(() => null);
+        console.error('auth.github.fetch_profile.user_failed', {
+          status: userResponse.status,
+          statusText: userResponse.statusText,
+          responseBody,
+        });
+        throw new Error(
+          `GitHub profile lookup failed with status ${userResponse.status}`,
+        );
+      }
+
+      console.info('auth.github.fetch_profile.user_json.before');
+      const user = (await userResponse.json()) as {
+        id: number;
+        login: string;
+        name: string | null;
+        avatar_url: string | null;
+        node_id: string;
+        company: string | null;
+        bio: string | null;
+        email: string | null;
+      };
+      console.info('auth.github.fetch_profile.user_json.after', {
+        login: user.login,
+        hasEmail: Boolean(user.email),
+      });
+
+      let email = user.email;
+
+      if (!emailResponse.ok || !email) {
+        const responseBody = await emailResponse.clone().text().catch(() => null);
+        console.info('auth.github.fetch_profile.emails_fallback', {
+          status: emailResponse.status,
+          statusText: emailResponse.statusText,
+          responseBody,
+          hasExistingEmail: Boolean(email),
+        });
+
+        const emails = (await emailResponse.json().catch(() => [])) as Array<{
+          email: string;
+          primary: boolean;
+          verified: boolean;
+        }>;
+        email =
+          emails.find((entry) => entry.primary && entry.verified)?.email ??
+          `${user.login}@users.noreply.github.com`;
+      }
+
+      return {
+        githubUserId: user.id,
+        login: user.login,
+        name: user.name,
+        email,
+        avatarUrl: user.avatar_url,
+        githubNodeId: user.node_id,
+        company: user.company,
+        bio: user.bio,
+      };
+    } catch (error) {
+      console.error('auth.github.fetch_profile.error', {
+        hasAccessToken: Boolean(accessToken),
+        error,
+      });
+      throw error;
+    } finally {
+      clearTimeout(timeoutHandle);
     }
-
-    const user = (await userResponse.json()) as {
-      id: number;
-      login: string;
-      name: string | null;
-      avatar_url: string | null;
-      node_id: string;
-      company: string | null;
-      bio: string | null;
-      email: string | null;
-    };
-
-    let email = user.email;
-
-    if (!emailResponse.ok || !email) {
-      const emails = (await emailResponse.json().catch(() => [])) as Array<{
-        email: string;
-        primary: boolean;
-        verified: boolean;
-      }>;
-      email =
-        emails.find((entry) => entry.primary && entry.verified)?.email ??
-        `${user.login}@users.noreply.github.com`;
-    }
-
-    return {
-      githubUserId: user.id,
-      login: user.login,
-      name: user.name,
-      email,
-      avatarUrl: user.avatar_url,
-      githubNodeId: user.node_id,
-      company: user.company,
-      bio: user.bio,
-    };
   }
 
   async upsertUser(db: DatabaseClient, profile: GitHubOAuthProfile) {

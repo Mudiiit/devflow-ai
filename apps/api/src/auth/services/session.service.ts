@@ -45,27 +45,65 @@ export class SessionService {
       Date.now() + AUTH_REFRESH_TOKEN_TTL_SECONDS * 1000,
     );
 
-    const rows = await this.db
-      .insert(authSessions)
-      .values({
+    console.info('auth.session.issue.before', {
+      userId: user.id,
+      userEmail: user.email,
+      githubLogin: user.githubLogin,
+      hasIpAddress: Boolean(context.ipAddress),
+      hasUserAgent: Boolean(context.userAgent),
+    });
+
+    let rows;
+
+    try {
+      rows = await this.db
+        .insert(authSessions)
+        .values({
+          userId: user.id,
+          refreshTokenHash: sha256Hex(refreshToken),
+          csrfTokenHash: sha256Hex(csrfToken),
+          expiresAt,
+          userAgent: context.userAgent ?? undefined,
+          ipAddress: context.ipAddress ?? undefined,
+          metadata: { issuedVia: 'github-oauth' },
+        })
+        .returning();
+    } catch (error) {
+      console.error('auth.session.issue.insert_failed', {
         userId: user.id,
-        refreshTokenHash: sha256Hex(refreshToken),
-        csrfTokenHash: sha256Hex(csrfToken),
-        expiresAt,
-        userAgent: context.userAgent ?? undefined,
-        ipAddress: context.ipAddress ?? undefined,
-        metadata: { issuedVia: 'github-oauth' },
-      })
-      .returning();
+        error,
+      });
+      throw error;
+    }
 
     const session = rows[0];
-    const accessToken = this.jwtService.signAccessToken({
-      sub: user.id,
-      sid: session.id,
-      role: user.role,
-      email: user.email,
-      githubLogin: user.githubLogin,
-    });
+
+    let accessToken: string;
+    try {
+      console.info('auth.session.issue.signing.before', {
+        sessionId: session.id,
+        userId: user.id,
+      });
+      accessToken = this.jwtService.signAccessToken({
+        sub: user.id,
+        sid: session.id,
+        role: user.role,
+        email: user.email,
+        githubLogin: user.githubLogin,
+      });
+      console.info('auth.session.issue.signing.after', {
+        sessionId: session.id,
+        userId: user.id,
+        accessTokenLength: accessToken.length,
+      });
+    } catch (error) {
+      console.error('auth.session.issue.signing_failed', {
+        sessionId: session.id,
+        userId: user.id,
+        error,
+      });
+      throw error;
+    }
 
     return {
       accessToken,

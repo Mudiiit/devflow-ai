@@ -145,27 +145,68 @@ export class AuthController {
   @UseGuards(RateLimitGuard)
   @RateLimit({ limit: 30, windowMs: 60_000 })
   async bootstrapGitHubSession(@Req() request: Request) {
+    console.info('auth.bootstrap.start', {
+      requestUrl: request.originalUrl ?? request.url,
+      hasAuthorization: Boolean(request.headers.authorization),
+      hasCookieHeader: Boolean(request.headers.cookie),
+      hasGithubClientId: Boolean(process.env.GITHUB_CLIENT_ID),
+      hasGithubClientSecret: Boolean(process.env.GITHUB_CLIENT_SECRET),
+      hasJwtSecret: Boolean(process.env.JWT_SECRET),
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+    });
+
     const authorization = request.headers.authorization ?? '';
     const accessToken = authorization.startsWith('Bearer ')
       ? authorization.slice('Bearer '.length).trim()
       : '';
 
     if (!accessToken) {
+      console.error('auth.bootstrap.missing_github_session_token', {
+        requestUrl: request.originalUrl ?? request.url,
+      });
       throw new UnauthorizedException('Missing GitHub access token');
     }
 
-    const profile = await this.githubOAuthService.fetchProfile(accessToken);
-    const session = await this.issueGitHubSession(profile, {
-      ipAddress: request.ip,
-      userAgent: request.headers['user-agent'] ?? null,
-    });
+    try {
+      console.info('auth.bootstrap.fetch_profile.before', {
+        requestUrl: request.originalUrl ?? request.url,
+      });
+      const profile = await this.githubOAuthService.fetchProfile(accessToken);
+      console.info('auth.bootstrap.fetch_profile.after', {
+        requestUrl: request.originalUrl ?? request.url,
+        githubUserId: profile.githubUserId,
+        login: profile.login,
+        hasEmail: Boolean(profile.email),
+      });
 
-    return {
-      accessToken: session.accessToken,
-      refreshToken: session.refreshToken,
-      csrfToken: session.csrfToken,
-      sessionId: session.sessionId,
-    };
+      console.info('auth.bootstrap.issue_session.before', {
+        requestUrl: request.originalUrl ?? request.url,
+        githubUserId: profile.githubUserId,
+        login: profile.login,
+      });
+      const session = await this.issueGitHubSession(profile, {
+        ipAddress: request.ip,
+        userAgent: request.headers['user-agent'] ?? null,
+      });
+      console.info('auth.bootstrap.issue_session.after', {
+        requestUrl: request.originalUrl ?? request.url,
+        githubUserId: profile.githubUserId,
+        sessionId: session.sessionId,
+      });
+
+      return {
+        accessToken: session.accessToken,
+        refreshToken: session.refreshToken,
+        csrfToken: session.csrfToken,
+        sessionId: session.sessionId,
+      };
+    } catch (error) {
+      console.error('auth.bootstrap.failed', {
+        requestUrl: request.originalUrl ?? request.url,
+        error,
+      });
+      throw error;
+    }
   }
 
   @Get('session')
