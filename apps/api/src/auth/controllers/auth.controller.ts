@@ -114,6 +114,27 @@ export class AuthController {
         session.refreshToken,
         session.csrfToken,
       );
+
+      console.info('auth.callback.cookies.set', {
+        requestUrl: request.originalUrl ?? request.url,
+        returnTo,
+        cookieOptions: {
+          httpOnly: true,
+          secure: this.isSecureCookiesEnabled(),
+          sameSite: resolveAuthCookieSameSite(),
+          path: AUTH_COOKIE_PATH,
+          ...(resolveSharedCookieDomain()
+            ? { domain: resolveSharedCookieDomain() }
+            : {}),
+        },
+        cookieNames: [
+          AUTH_ACCESS_TOKEN_COOKIE,
+          AUTH_REFRESH_TOKEN_COOKIE,
+          AUTH_CSRF_COOKIE,
+        ],
+        setCookieHeaders: response.getHeader('Set-Cookie') ?? response.getHeader('set-cookie') ?? null,
+      });
+
       response.redirect(returnTo);
     } catch (error) {
       response.status(500).json({ message: 'GitHub OAuth callback failed' });

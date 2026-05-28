@@ -43,18 +43,37 @@ function cleanRequestHeaders(headers: Headers): Headers {
   return forwarded;
 }
 
+function buildCookieHeader(request: NextRequest): string | null {
+  const headerCookie = request.headers.get('cookie');
+
+  if (headerCookie) {
+    return headerCookie;
+  }
+
+  const cookies = request.cookies.getAll();
+  if (cookies.length === 0) {
+    return null;
+  }
+
+  return cookies
+    .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
+    .join('; ');
+}
+
 async function proxyRequest(request: NextRequest, context: RouteContext): Promise<Response> {
   const targetUrl = buildTargetUrl(request, await context.params);
   const requestHeaders = cleanRequestHeaders(request.headers);
-  const cookieHeader = requestHeaders.get('cookie');
+  const cookieHeader = buildCookieHeader(request);
+  const requestCookieNames = request.cookies.getAll().map(({ name }) => name);
   const accessToken = cookieHeader ? readCookie(cookieHeader, AUTH_ACCESS_TOKEN_COOKIE) : null;
   const csrfToken = cookieHeader ? readCookie(cookieHeader, AUTH_CSRF_COOKIE) : null;
+  const bearerInjected = Boolean(accessToken && !requestHeaders.has('authorization'));
 
   if (cookieHeader) {
     requestHeaders.set('cookie', cookieHeader);
   }
 
-  if (accessToken && !requestHeaders.has('authorization')) {
+  if (bearerInjected) {
     requestHeaders.set('authorization', `Bearer ${accessToken}`);
   }
 
@@ -65,9 +84,15 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
   console.info('web.api.proxy.start', {
     method: request.method,
     requestUrl: request.url,
+    requestOrigin: request.headers.get('origin') ?? request.nextUrl.origin,
     targetUrl: targetUrl.toString(),
-    hasCookie: Boolean(cookieHeader),
+    requestCookieNames,
+    requestCanReadDevflowAccessToken: requestCookieNames.includes(AUTH_ACCESS_TOKEN_COOKIE),
+    requestCanReadDevflowCsrfToken: requestCookieNames.includes(AUTH_CSRF_COOKIE),
+    hasAuthCookies: Boolean(accessToken || csrfToken),
+    hasCookieHeader: Boolean(cookieHeader),
     hasAuthorization: requestHeaders.has('authorization'),
+    bearerInjected,
     hasCsrfToken: Boolean(csrfToken),
   });
 
@@ -78,6 +103,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
       ? request.body
       : undefined,
     cache: 'no-store',
+    credentials: 'include',
     redirect: 'manual',
   });
 
@@ -103,6 +129,7 @@ async function proxyRequest(request: NextRequest, context: RouteContext): Promis
   console.info('web.api.proxy.end', {
     method: request.method,
     requestUrl: request.url,
+    requestOrigin: request.headers.get('origin') ?? request.nextUrl.origin,
     targetUrl: targetUrl.toString(),
     status: response.status,
   });

@@ -105,6 +105,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const payload = (await bootstrapResponse.json()) as BootstrapResponse;
   const response = NextResponse.redirect(new URL(returnTo, request.url));
   const cookieOptions = buildDevflowAuthCookieOptions();
+  const requestCookieNames = request.cookies.getAll().map(({ name }) => name);
 
   response.cookies.set(AUTH_ACCESS_TOKEN_COOKIE, payload.accessToken, {
     ...cookieOptions,
@@ -120,6 +121,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     path: cookieOptions.path,
     ...(cookieOptions.domain ? { domain: cookieOptions.domain } : {}),
     maxAge: 30 * 24 * 60 * 60,
+  });
+
+  console.info('devflow.auth.bootstrap.cookies.set', {
+    requestUrl: request.url,
+    apiUrl: bootstrapResponse.url,
+    status: bootstrapResponse.status,
+    requestCookieNames,
+    requestHasDevflowAccessToken: requestCookieNames.includes(AUTH_ACCESS_TOKEN_COOKIE),
+    requestHasDevflowRefreshToken: requestCookieNames.includes(AUTH_REFRESH_TOKEN_COOKIE),
+    requestHasDevflowCsrfToken: requestCookieNames.includes(AUTH_CSRF_COOKIE),
+    cookieNamesWritten: [
+      AUTH_ACCESS_TOKEN_COOKIE,
+      AUTH_REFRESH_TOKEN_COOKIE,
+      AUTH_CSRF_COOKIE,
+    ],
+    cookieOptions,
+    responseCookies: response.cookies.getAll().map(({ name, domain, path, secure, sameSite, httpOnly, maxAge, expires }) => ({
+      name,
+      domain,
+      path,
+      secure,
+      sameSite,
+      httpOnly,
+      maxAge,
+      expires,
+    })),
   });
 
   response.headers.set('Cache-Control', 'no-store');
