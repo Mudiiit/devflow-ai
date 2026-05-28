@@ -13,6 +13,20 @@ type BootstrapResponse = {
   readonly sessionId: string;
 };
 
+function isBootstrapResponse(value: unknown): value is BootstrapResponse {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.accessToken === 'string' &&
+    typeof candidate.refreshToken === 'string' &&
+    typeof candidate.csrfToken === 'string' &&
+    typeof candidate.sessionId === 'string'
+  );
+}
+
 const BOOTSTRAP_FETCH_TIMEOUT_MS = 15_000;
 
 function resolveBootstrapApiBase(): string {
@@ -51,6 +65,7 @@ async function fetchWithTimeout(
 
     const response = await fetch(input, {
       ...init,
+      credentials: 'include',
       signal: controller.signal,
     });
 
@@ -192,6 +207,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       bootstrapUrl,
       status: bootstrapResponse.status,
       ok: bootstrapResponse.ok,
+      contentType: bootstrapResponse.headers.get('content-type'),
     });
 
     if (!bootstrapResponse.ok) {
@@ -223,39 +239,115 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       );
     }
 
-    console.info('devflow.auth.bootstrap.await.upstream.json.before', {
+    console.info('devflow.auth.bootstrap.await.upstream.body.before', {
       requestUrl: request.url,
       bootstrapUrl,
     });
-    const payload = (await bootstrapResponse.json()) as BootstrapResponse;
+    const bootstrapResponseText = await bootstrapResponse.clone().text();
+    console.info('devflow.auth.bootstrap.await.upstream.body.after', {
+      requestUrl: request.url,
+      bootstrapUrl,
+      bodyLength: bootstrapResponseText.length,
+      bodyPreview: bootstrapResponseText.slice(0, 500),
+    });
+
+    let parsedPayload: unknown;
+
+    try {
+      parsedPayload = bootstrapResponseText.length > 0 ? JSON.parse(bootstrapResponseText) : null;
+    } catch (error) {
+      console.error('devflow.auth.bootstrap.parse_failed', {
+        requestUrl: request.url,
+        bootstrapUrl,
+        error,
+        bodyPreview: bootstrapResponseText.slice(0, 500),
+      });
+      return NextResponse.json(
+        { message: 'GitHub bootstrap failed unexpectedly' },
+        { status: 502 },
+      );
+    }
+
     console.info('devflow.auth.bootstrap.await.upstream.json.after', {
       requestUrl: request.url,
       bootstrapUrl,
-      hasAccessToken: Boolean(payload.accessToken),
-      hasRefreshToken: Boolean(payload.refreshToken),
-      hasCsrfToken: Boolean(payload.csrfToken),
-      hasSessionId: Boolean(payload.sessionId),
+      parsedPayload,
+      hasValidShape: isBootstrapResponse(parsedPayload),
     });
+
+    if (!isBootstrapResponse(parsedPayload)) {
+      console.error('devflow.auth.bootstrap.invalid_payload_shape', {
+        requestUrl: request.url,
+        bootstrapUrl,
+        parsedPayload,
+      });
+      return NextResponse.json(
+        { message: 'GitHub bootstrap failed unexpectedly' },
+        { status: 502 },
+      );
+    }
+
+    const payload = parsedPayload;
 
     const response = NextResponse.redirect(new URL(returnTo, request.url));
     const cookieOptions = buildDevflowAuthCookieOptions();
     const requestCookieNames = request.cookies.getAll().map(({ name }) => name);
 
-    response.cookies.set(AUTH_ACCESS_TOKEN_COOKIE, payload.accessToken, {
-      ...cookieOptions,
-      maxAge: 15 * 60,
-    });
-    response.cookies.set(AUTH_REFRESH_TOKEN_COOKIE, payload.refreshToken, {
-      ...cookieOptions,
-      maxAge: 30 * 24 * 60 * 60,
-    });
-    response.cookies.set(AUTH_CSRF_COOKIE, payload.csrfToken, {
-      secure: cookieOptions.secure,
-      sameSite: cookieOptions.sameSite,
-      path: cookieOptions.path,
-      ...(cookieOptions.domain ? { domain: cookieOptions.domain } : {}),
-      maxAge: 30 * 24 * 60 * 60,
-    });
+    try {
+      console.info('devflow.auth.bootstrap.cookies.write.before', {
+        requestUrl: request.url,
+        bootstrapUrl,
+        cookieNamesWritten: [
+          AUTH_ACCESS_TOKEN_COOKIE,
+          AUTH_REFRESH_TOKEN_COOKIE,
+          AUTH_CSRF_COOKIE,
+        ],
+        cookieOptions,
+      });
+
+      response.cookies.set(AUTH_ACCESS_TOKEN_COOKIE, payload.accessToken, {
+        ...cookieOptions,
+        maxAge: 15 * 60,
+      });
+      response.cookies.set(AUTH_REFRESH_TOKEN_COOKIE, payload.refreshToken, {
+        ...cookieOptions,
+        maxAge: 30 * 24 * 60 * 60,
+      });
+      response.cookies.set(AUTH_CSRF_COOKIE, payload.csrfToken, {
+        secure: cookieOptions.secure,
+        sameSite: cookieOptions.sameSite,
+        path: cookieOptions.path,
+        ...(cookieOptions.domain ? { domain: cookieOptions.domain } : {}),
+        maxAge: 30 * 24 * 60 * 60,
+      });
+
+      console.info('devflow.auth.bootstrap.cookies.write.after', {
+        requestUrl: request.url,
+        bootstrapUrl,
+        setCookies: response.cookies.getAll().map(({ name, domain, path, secure, sameSite, httpOnly, maxAge, expires }) => ({
+          name,
+          domain,
+          path,
+          secure,
+          sameSite,
+          httpOnly,
+          maxAge,
+          expires,
+        })),
+      });
+    } catch (error) {
+      console.error('devflow.auth.bootstrap.cookie_write_failed', {
+        requestUrl: request.url,
+        bootstrapUrl,
+        error,
+        payload,
+        cookieOptions,
+      });
+      return NextResponse.json(
+        { message: 'GitHub bootstrap failed unexpectedly' },
+        { status: 500 },
+      );
+    }
 
     console.info('devflow.auth.bootstrap.cookies.set', {
       requestUrl: request.url,
