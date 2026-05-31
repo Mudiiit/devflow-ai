@@ -2,8 +2,9 @@ import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import {
   createRedisConnection,
   isRedisConnectionEnabled,
-  serverEnv,
 } from '@devflow/config';
+
+import { serverEnv } from '@devflow/config/server';
 
 @Injectable()
 export class CacheService implements OnApplicationShutdown {

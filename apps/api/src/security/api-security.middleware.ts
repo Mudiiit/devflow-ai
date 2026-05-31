@@ -3,8 +3,9 @@ import type { NextFunction, Request, Response } from 'express';
 import {
   createRedisConnection,
   isRedisConnectionEnabled,
-  serverEnv,
 } from '@devflow/config';
+
+import { serverEnv } from '@devflow/config/server';
 
 type RateLimitBucket = Readonly<{
   count: number;

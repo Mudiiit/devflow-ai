@@ -6,9 +6,10 @@ import {
   reviewJobQueueDefaults,
   reviewJobQueueJobName,
   reviewJobQueueName,
-  serverEnv,
   type ReviewQueueJobData,
 } from '@devflow/config';
+
+import { serverEnv } from '@devflow/config/server';
 
 @Injectable()
 export class ReviewQueueService implements OnApplicationShutdown {
