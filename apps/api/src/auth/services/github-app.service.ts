@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { StructuredLoggerService } from '@devflow/logger';
 import { normalizePrivateKey, signGitHubAppJwt } from '../utils/crypto.js';
 

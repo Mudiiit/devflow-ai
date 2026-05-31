@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { raw } from 'express';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { StructuredLoggerService } from '@devflow/logger';
 import { initializeTracing } from '@devflow/tracing';
 import { AppModule } from './app.module.js';

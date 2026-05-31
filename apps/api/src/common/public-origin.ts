@@ -1,4 +1,4 @@
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { isIP } from 'node:net';
 
 const localFrontendOrigin = 'http://127.0.0.1:3000';

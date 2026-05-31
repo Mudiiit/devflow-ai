@@ -6,7 +6,7 @@ import {
 } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { EncryptedSecretsRepository } from '@devflow/database';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 
 const ALGORITHM = 'aes-256-gcm';
 

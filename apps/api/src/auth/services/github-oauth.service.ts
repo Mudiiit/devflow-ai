@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { eq, users, type DatabaseClient } from '@devflow/database';
 import { normalizePrivateKey } from '../utils/crypto.js';
 import type { GitHubOAuthProfile } from '../auth.types.js';

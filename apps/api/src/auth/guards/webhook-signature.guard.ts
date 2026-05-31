@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Request } from 'express';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { AUTH_WEBHOOK_SIGNATURE_HEADER } from '../auth.constants.js';
 import { verifyHmacSha256Signature } from '../utils/webhook-verification.js';
 

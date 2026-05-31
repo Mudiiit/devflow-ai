@@ -1,6 +1,7 @@
 import { Injectable, OnApplicationShutdown } from '@nestjs/common';
 import { Queue } from 'bullmq';
-import { createRedisConnection, isRedisConnectionEnabled, reviewJobDeadLetterQueueName, reviewJobQueueDefaults, reviewJobQueueJobName, reviewJobQueueName, serverEnv, type ReviewQueueJobData } from '@devflow/config';
+import { createRedisConnection, isRedisConnectionEnabled, reviewJobDeadLetterQueueName, reviewJobQueueDefaults, reviewJobQueueJobName, reviewJobQueueName, type ReviewQueueJobData } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 
 @Injectable()
 export class ReviewQueueService implements OnApplicationShutdown {

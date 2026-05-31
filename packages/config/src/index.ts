@@ -1,6 +1,5 @@
 export { clientEnv } from './client.js';
 export type { ClientEnv } from './client.js';
-export { serverEnv } from './server.js';
 export type { ServerEnv } from './server.js';
 export { loadEnv } from './loader.js';
 export { sharedEnvSchema, nodeEnvSchema } from './schemas/shared.schema.js';

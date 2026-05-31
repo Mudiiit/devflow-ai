@@ -9,27 +9,39 @@
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./client": {
       "types": "./src/client.ts",
-      "import": "./dist/client.js"
+      "import": "./dist/client.js",
+      "require": "./dist/client.js",
+      "default": "./dist/client.js"
     },
     "./server": {
       "types": "./src/server.ts",
-      "import": "./dist/server.js"
+      "import": "./dist/server.js",
+      "require": "./dist/server.js",
+      "default": "./dist/server.js"
     },
     "./loader": {
       "types": "./src/loader.ts",
-      "import": "./dist/loader.js"
+      "import": "./dist/loader.js",
+      "require": "./dist/loader.js",
+      "default": "./dist/loader.js"
     },
     "./schemas/*": {
       "types": "./src/schemas/*.ts",
-      "import": "./dist/schemas/*.js"
+      "import": "./dist/schemas/*.js",
+      "require": "./dist/schemas/*.js",
+      "default": "./dist/schemas/*.js"
     },
     "./utils/*": {
       "types": "./src/utils/*.ts",
-      "import": "./dist/utils/*.js"
+      "import": "./dist/utils/*.js",
+      "require": "./dist/utils/*.js",
+      "default": "./dist/utils/*.js"
     },
     "./package.json": "./package.json"
   },

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { AUTH_ACCESS_TOKEN_TTL_SECONDS } from '../auth.constants.js';
 import { type JwtAccessTokenPayload } from '../auth.types.js';
 import { signJwt, verifyJwt } from '../utils/crypto.js';

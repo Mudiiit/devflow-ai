@@ -29,5 +29,16 @@ export function validateEnv<TSchema extends z.ZodTypeAny>(
   const scope = options.scope ?? 'server';
   const issues = result.error.issues.map((issue) => `${formatIssuePath(issue.path)}: ${issue.message}`);
 
-  throw new EnvValidationError(`Invalid ${scope} environment configuration`, issues);
+  console.error('Environment validation issues:', issues);
+  console.error('Environment snapshot:', {
+    DATABASE_URL: process.env.DATABASE_URL ? '[present]' : '[missing]',
+    NODE_ENV: process.env.NODE_ENV,
+    PORT: process.env.PORT,
+    LOG_LEVEL: process.env.LOG_LEVEL,
+  });
+
+  throw new EnvValidationError(
+    `Invalid ${scope} environment configuration:\n${issues.join('\n')}`,
+    issues,
+  );
 }

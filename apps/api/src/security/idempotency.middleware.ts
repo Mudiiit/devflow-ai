@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { NextFunction, Request, Response } from 'express';
-import { serverEnv } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 
 type CachedResponse = {
   requestHash: string;

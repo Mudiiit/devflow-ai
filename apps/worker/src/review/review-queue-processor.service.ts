@@ -2,7 +2,8 @@ import { Injectable, OnApplicationShutdown, OnModuleInit } from '@nestjs/common'
 import { Worker, type Job } from 'bullmq';
 import { ReviewJobsRepository } from '@devflow/database';
 import { MetricsService, StructuredLoggerService } from '@devflow/logger';
-import { createRedisConnection, reviewJobQueueName, serverEnv, type ReviewQueueJobData } from '@devflow/config';
+import { createRedisConnection, reviewJobQueueName, type ReviewQueueJobData } from '@devflow/config';
+import { serverEnv } from '@devflow/config/server';
 import { ReviewJobDispatcherService } from './review-worker.service.js';
 import { ReviewQueueService } from './review-queue.service.js';
 
