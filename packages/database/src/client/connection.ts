@@ -34,7 +34,6 @@ const sanitizeConnectionString = (connectionString: string): string => {
   url.searchParams.delete('channel_binding');
 
   if (url.hostname.includes('neon.tech')) {
-    url.hostname = url.hostname.replace(/\.c-\d+\./g, '.');
     url.searchParams.set('sslmode', 'require');
   }
 
