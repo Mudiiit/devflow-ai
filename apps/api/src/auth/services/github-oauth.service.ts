@@ -179,11 +179,32 @@ export class GitHubOAuthService {
   }
 
   async upsertUser(db: DatabaseClient, profile: GitHubOAuthProfile) {
-    const existingRows = await db
-      .select()
-      .from(users)
-      .where(eq(users.githubUserId, profile.githubUserId))
-      .limit(1);
+    console.info('auth.upsert.select.before', {
+      githubUserId: profile.githubUserId,
+      login: profile.login,
+    });
+
+    let existingRows;
+
+    try {
+      existingRows = await db
+        .select()
+        .from(users)
+        .where(eq(users.githubUserId, profile.githubUserId))
+        .limit(1);
+    } catch (error) {
+      console.error('auth.upsert.select.failed', {
+        githubUserId: profile.githubUserId,
+        error,
+      });
+      throw error;
+    }
+
+    console.info('auth.upsert.select.after', {
+      githubUserId: profile.githubUserId,
+      rowCount: existingRows.length,
+    });
+
     const now = new Date();
     const payload = {
       email: profile.email,
