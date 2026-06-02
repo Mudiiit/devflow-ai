@@ -348,14 +348,37 @@ export class AuthController {
     csrfToken: string;
     sessionId: string;
   }> {
+    console.info('auth.bootstrap.upsert_user.before', {
+      githubUserId: profile.githubUserId,
+      login: profile.login,
+    });
+
     const dbUser = await this.githubOAuthService.upsertUser(this.db, profile);
+
+    console.info('auth.bootstrap.upsert_user.after', {
+      userId: dbUser.id,
+      githubLogin: dbUser.githubLogin,
+    });
+
+    console.info('auth.bootstrap.organization.before', {
+      userId: dbUser.id,
+    });
+
     await this.organizationService.ensurePersonalOrganizationForUser({
       userId: dbUser.id,
       githubLogin: dbUser.githubLogin,
       displayName: dbUser.displayName,
     });
 
-    return this.sessionService.issueSession(
+    console.info('auth.bootstrap.organization.after', {
+      userId: dbUser.id,
+    });
+
+    console.info('auth.bootstrap.session.before', {
+      userId: dbUser.id,
+    });
+
+    const session = await this.sessionService.issueSession(
       {
         id: dbUser.id,
         email: dbUser.email,
@@ -369,6 +392,13 @@ export class AuthController {
       },
       context,
     );
+
+    console.info('auth.bootstrap.session.after', {
+      userId: dbUser.id,
+      sessionId: session.sessionId,
+    });
+
+    return session;
   }
 
   private readCookie(cookieHeader: string, name: string): string | null {
