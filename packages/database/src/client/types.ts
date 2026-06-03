@@ -14,6 +14,9 @@ export interface CreateDatabaseClientOptions {
   logger?: boolean;
   ssl?: boolean | Record<string, unknown>;
   maxConnections?: number;
+  connectionTimeoutMillis?: number;
+  idleTimeoutMillis?: number;
+  queryTimeoutMillis?: number;
 }
 
 export interface DatabaseConnection {

@@ -1,11 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
-import { db } from '../client/index.js';
 
 async function seedCoreData(): Promise<void> {
   // Keep seeding infrastructure idempotent and conservative. Real production
   // seed sets should be explicit to avoid surprising writes to shared databases.
-  void db;
 }
 
 export async function seedDatabase(): Promise<void> {

@@ -1,8 +1,8 @@
 import { Module, OnApplicationShutdown, Injectable } from '@nestjs/common';
 import {
-  createDatabaseClient,
-  closeDatabaseConnection,
+  createDatabaseRuntime,
   type DatabaseClient,
+  type DatabaseConnection,
 } from '@devflow/database';
 import {
   ApiKeysRepository,
@@ -156,11 +156,16 @@ const repositoryProviders = [
   },
 ];
 
+let databaseConnection: DatabaseConnection | undefined;
+
 @Module({
   providers: [
     {
       provide: DATABASE_CLIENT,
-      useFactory: () => createDatabaseClient(),
+      useFactory: () => {
+        databaseConnection ??= createDatabaseRuntime();
+        return databaseConnection.client;
+      },
     },
     // Ensure the global database connection is closed on application shutdown
     {
@@ -168,7 +173,8 @@ const repositoryProviders = [
       useClass: class DatabaseLifecycle implements OnApplicationShutdown {
         async onApplicationShutdown(): Promise<void> {
           try {
-            await closeDatabaseConnection();
+            await databaseConnection?.pool.end();
+            databaseConnection = undefined;
           } catch (err) {
             // swallow errors during shutdown
           }

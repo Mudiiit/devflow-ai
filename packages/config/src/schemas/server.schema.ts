@@ -3,6 +3,13 @@ import { sharedEnvSchema } from './shared.schema.js';
 
 export const serverEnvSchema = sharedEnvSchema.extend({
   DATABASE_URL: z.string().min(1),
+  DIRECT_URL: z.string().min(1).optional(),
+  POSTGRES_URL: z.string().min(1).optional(),
+  NEON_DATABASE_URL: z.string().min(1).optional(),
+  DATABASE_POOL_MAX_CONNECTIONS: z.coerce.number().int().min(1).optional(),
+  DATABASE_CONNECTION_TIMEOUT_MS: z.coerce.number().int().min(1000).optional(),
+  DATABASE_IDLE_TIMEOUT_MS: z.coerce.number().int().min(1000).optional(),
+  DATABASE_QUERY_TIMEOUT_MS: z.coerce.number().int().min(1000).optional(),
   REDIS_URL: z.string().min(1).optional(),
   JWT_SECRET: z.string().min(32),
   SECRET_ENCRYPTION_KEY: z.string().min(32).optional(),

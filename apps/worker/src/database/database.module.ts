@@ -4,7 +4,7 @@ import {
   AuditLogsRepository,
   AuthSessionsRepository,
   OrganizationsRepository,
-  createDatabaseClient,
+  createDatabaseRuntime,
   GithubInstallationsRepository,
   OauthStatesRepository,
   PullRequestsRepository,
@@ -14,6 +14,7 @@ import {
   ReviewMetricsRepository,
   UsageRecordsRepository,
   UsersRepository,
+  type DatabaseConnection,
   type DatabaseClient,
 } from '@devflow/database';
 import { DATABASE_CLIENT } from './database.constants.js';
@@ -86,20 +87,24 @@ const repositoryProviders = [
   },
 ];
 
+let databaseConnection: DatabaseConnection | undefined;
+
 @Module({
   providers: [
     {
       provide: DATABASE_CLIENT,
-      useFactory: () => createDatabaseClient(),
+      useFactory: () => {
+        databaseConnection ??= createDatabaseRuntime();
+        return databaseConnection.client;
+      },
     },
     {
       provide: 'DATABASE_LIFECYCLE',
       useClass: class DatabaseLifecycle implements OnApplicationShutdown {
         async onApplicationShutdown(): Promise<void> {
           try {
-            // import lazily to avoid circular imports at module resolution time
-            const { closeDatabaseConnection } = await Promise.resolve(require('@devflow/database'));
-            await closeDatabaseConnection();
+            await databaseConnection?.pool.end();
+            databaseConnection = undefined;
           } catch (err) {
             // ignore errors during shutdown
           }

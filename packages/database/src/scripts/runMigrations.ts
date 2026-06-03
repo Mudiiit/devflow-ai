@@ -4,11 +4,19 @@ import path from 'path';
 import { loadEnv, serverEnvSchema } from '@devflow/config';
 
 // Validate essential env vars before attempting migrations.
-const envSchema = serverEnvSchema.pick({ DATABASE_URL: true });
-const { DATABASE_URL } = loadEnv({ schema: envSchema, scope: 'server' });
+const envSchema = serverEnvSchema.pick({
+  DATABASE_URL: true,
+  DIRECT_URL: true,
+  POSTGRES_URL: true,
+  NEON_DATABASE_URL: true,
+});
+const { DATABASE_URL, DIRECT_URL, POSTGRES_URL, NEON_DATABASE_URL } = loadEnv({ schema: envSchema, scope: 'server' });
 
-if (!DATABASE_URL) {
-  console.error('DATABASE_URL is not set — aborting migrations.');
+const resolvedDatabaseUrl =
+  DIRECT_URL ?? POSTGRES_URL ?? NEON_DATABASE_URL ?? DATABASE_URL;
+
+if (!resolvedDatabaseUrl) {
+  console.error('No database connection string is set — aborting migrations.');
   process.exit(1);
 }
 
@@ -27,7 +35,7 @@ try {
   execSync(command, {
     stdio: 'inherit',
     cwd: pkgRoot,
-    env: { ...process.env, DATABASE_URL },
+    env: { ...process.env, DATABASE_URL: resolvedDatabaseUrl },
   });
   console.log('Database schema sync completed successfully.');
 } catch (err: any) {
