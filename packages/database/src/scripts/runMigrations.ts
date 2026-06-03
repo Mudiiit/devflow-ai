@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { existsSync, readdirSync } from 'fs';
 import path from 'path';
 import { loadEnv, serverEnvSchema } from '@devflow/config';
 
@@ -13,15 +14,22 @@ if (!DATABASE_URL) {
 
 try {
   const pkgRoot = path.resolve(__dirname, '..', '..');
-  // Run drizzle-kit migrate with the package-local config. Use npx to ensure
-  // the local dev dependency is resolved in CI/container images.
-  console.log('Running Drizzle migrations (package root: %s)...', pkgRoot);
-  execSync('npx drizzle-kit migrate --config drizzle.config.ts', {
+  const migrationsDir = path.resolve(pkgRoot, 'src', 'migrations');
+  const hasMigrations = existsSync(migrationsDir) && readdirSync(migrationsDir).length > 0;
+
+  // Use migrations when they exist; otherwise push the current schema so new
+  // deployments can provision an empty database from the checked-in schema.
+  const command = hasMigrations
+    ? 'npx drizzle-kit migrate --config drizzle.config.ts'
+    : 'npx drizzle-kit push --config drizzle.config.ts';
+
+  console.log('Running database schema sync (package root: %s)...', pkgRoot);
+  execSync(command, {
     stdio: 'inherit',
     cwd: pkgRoot,
     env: { ...process.env, DATABASE_URL },
   });
-  console.log('Migrations completed successfully.');
+  console.log('Database schema sync completed successfully.');
 } catch (err: any) {
   console.error('Migration run failed:', err?.message ?? err);
   process.exit(2);

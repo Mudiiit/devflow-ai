@@ -14,7 +14,7 @@ Do not point Render at the monorepo root with a generic `pnpm build` command, be
 
 Use the root [render.yaml](../../render.yaml) file in this repository. It is configured for the API only:
 
-- Build command: `pnpm install --frozen-lockfile && pnpm --filter api... build`
+- Build command: `pnpm install --frozen-lockfile && pnpm --filter @devflow/database migrate:prod && pnpm --filter api... build`
 - Start command: `pnpm --filter api start:prod`
 - Health check path: `/health/ready`
 - Runtime: Node
@@ -68,7 +68,7 @@ Set these in the Render API service.
 
 Use this exact setup:
 
-- Build command: `pnpm install --frozen-lockfile && pnpm --filter api... build`
+- Build command: `pnpm install --frozen-lockfile && pnpm --filter @devflow/database migrate:prod && pnpm --filter api... build`
 - Start command: `pnpm --filter api start:prod`
 - Health check: `/health/ready`
 
