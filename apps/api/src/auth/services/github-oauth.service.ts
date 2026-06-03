@@ -179,6 +179,7 @@ export class GitHubOAuthService {
   }
 
   async upsertUser(db: DatabaseClient, profile: GitHubOAuthProfile) {
+    console.info('auth.upsert.enter');
     console.info('auth.upsert.select.before', {
       githubUserId: profile.githubUserId,
       login: profile.login,
